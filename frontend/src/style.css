@@ -190,8 +190,6 @@ body:has(.place-picker-backdrop){overflow:hidden}
 .marker-pin:active{cursor:grabbing}
 .marker-grip{position:absolute;right:-8px;top:-7px;width:18px;height:18px;display:flex;align-items:center;justify-content:center;gap:2px;border:1px solid #d2e1ef;border-radius:999px;background:#fff;box-shadow:0 3px 9px #073b7a28}
 .marker-grip b{display:block;width:2px;height:2px;border-radius:50%;background:#315f8e}
-.map-hint.drag-hint{border-color:#c6dcef;background:#f7fbfff5;color:#174f8d}
-.map-hint.drag-hint .hint-icon{background:#dceeff;color:#07509a}
 .user-location-marker{background:transparent!important;border:0!important}
 .user-location-dot{width:24px;height:24px;display:grid;place-items:center;position:relative;border:3px solid #fff;border-radius:50%;background:#1884d8;box-shadow:0 2px 10px #07509a66}
 .user-location-dot:before{content:'';position:absolute;inset:-9px;border:2px solid #1884d866;border-radius:50%;animation:user-location-pulse 2s ease-out infinite}

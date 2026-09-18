@@ -240,8 +240,8 @@ onBeforeUnmount(() => {
     <div class="map-actions"><button type="button" :disabled="locationPending" aria-label="Tampilkan lokasi saya" title="Lokasi saya" @click="locate()"><LoaderCircle v-if="locationPending" :size="19" class="spinner" /><LocateFixed v-else :size="19" /></button><button type="button" aria-label="Lihat seluruh rute" title="Lihat seluruh rute" @click="fitMap"><Maximize2 :size="18" /></button></div>
     <div v-if="notice" class="map-notice" role="status">{{ notice }} <button aria-label="Tutup pemberitahuan peta" @click="notice = ''">×</button></div>
     <div v-if="centerPicking" class="center-picker-pin" :class="[selection === 'pickup' ? 'pickup' : 'destination', { moving: mapMoving, settling: pinSettling }]" aria-hidden="true"><span class="center-picker-marker"><b>{{ selection === 'pickup' ? 'A' : 'B' }}</b></span><i /></div>
-    <div v-else class="map-hint" :class="{ 'drag-hint': (pickup || destination) && !busy }" aria-live="polite">
-      <span>{{ busy ? 'Menghitung rute perjalanan…' : selection === 'pickup' && pickup ? 'Geser marker A atau ketuk peta untuk memindahkan' : selection === 'pickup' ? 'Ketuk peta untuk memilih titik jemput' : estimate ? 'Rute ditemukan. Marker dapat digeser.' : pickup || destination ? 'Tekan dan geser marker untuk menyesuaikan lokasi' : 'Pilih titik untuk mulai' }}</span>
+    <div v-else-if="busy || estimate || (!pickup && !destination)" class="map-hint" aria-live="polite">
+      <span>{{ busy ? 'Menghitung rute perjalanan…' : estimate ? 'Rute ditemukan. Marker dapat digeser.' : 'Pilih titik untuk mulai' }}</span>
     </div>
   </section>
 </template>
