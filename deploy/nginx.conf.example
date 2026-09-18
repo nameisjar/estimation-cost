@@ -1,0 +1,85 @@
+# Baris limit_req_zone harus dimuat di dalam blok http {}, di luar server {}.
+# Konfigurasi sites-enabled Ubuntu biasanya sudah disertakan dari blok http {}.
+limit_req_zone $binary_remote_addr zone=antarfix_api:10m rate=2r/s;
+
+# HTTP hanya digunakan untuk validasi sertifikat dan redirect ke HTTPS.
+server {
+    listen 80;
+    listen [::]:80;
+    server_name estimator.antarfix.id;
+
+    location /.well-known/acme-challenge/ {
+        root /var/www/certbot;
+    }
+
+    location / {
+        return 301 https://$host$request_uri;
+    }
+}
+
+server {
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
+    server_name estimator.antarfix.id;
+
+    # Ganti path ini jika Certbot/provider sertifikat Anda memakai lokasi lain.
+    ssl_certificate /etc/letsencrypt/live/estimator.antarfix.id/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/estimator.antarfix.id/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_session_cache shared:SSL:10m;
+    ssl_session_timeout 1d;
+
+    root /data/projects/antarfix-estimator/frontend/dist;
+    index index.html;
+    client_max_body_size 8k;
+
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-Frame-Options "DENY" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    add_header Permissions-Policy "geolocation=(self), camera=(), microphone=()" always;
+
+    gzip on;
+    gzip_vary on;
+    gzip_min_length 1024;
+    gzip_types text/plain text/css application/javascript application/json image/svg+xml;
+
+    location /api/ {
+        # Perlindungan awal; backend juga membatasi permintaan per alamat IP.
+        limit_req zone=antarfix_api burst=20 nodelay;
+        limit_req_status 429;
+
+        # Tanpa trailing slash: path /api/estimate tetap diteruskan utuh.
+        proxy_pass http://127.0.0.1:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_connect_timeout 5s;
+        proxy_send_timeout 20s;
+        proxy_read_timeout 20s;
+    }
+
+    location = /health {
+        access_log off;
+        proxy_pass http://127.0.0.1:3000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_connect_timeout 3s;
+        proxy_read_timeout 5s;
+    }
+
+    location /assets/ {
+        try_files $uri =404;
+        expires 1y;
+    }
+
+    location = /index.html {
+        expires -1;
+    }
+
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+}

@@ -1,0 +1,11 @@
+# Berlaku untuk folder induk, frontend, dan backend dalam satu repository.
+node_modules/
+dist/
+# Konfigurasi lokal tidak masuk Git; contoh environment tetap disimpan.
+.env
+.env.*
+!.env.example
+*.log
+coverage/
+artifacts/
+.npm-cache/

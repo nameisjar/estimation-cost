@@ -1,0 +1,29 @@
+import type { LocationPoint, Estimate, AppConfig, GeocodedPlace } from '../types';
+const baseUrl = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
+export function isValidPoint(point: LocationPoint | null): point is LocationPoint {
+  return !!point && Number.isFinite(point.lat) && Number.isFinite(point.lng) && Math.abs(point.lat) <= 90 && Math.abs(point.lng) <= 180;
+}
+async function request<T>(path: string, options?: RequestInit): Promise<T> {
+  try {
+    const response = await fetch(`${baseUrl}${path}`, { ...options, signal: AbortSignal.timeout(20000) });
+    const body = await response.json();
+    if (!response.ok || !body.success) throw new Error(body.error?.message || 'Perhitungan belum berhasil. Silakan coba lagi.');
+    return body.data as T;
+  } catch (error) {
+    if (error instanceof TypeError || error instanceof SyntaxError) throw new Error('Server belum dapat dihubungi. Periksa koneksi lalu coba lagi.');
+    if (error instanceof Error && ['TimeoutError', 'AbortError'].includes(error.name)) throw new Error('Perhitungan terlalu lama. Silakan coba lagi.');
+    throw error;
+  }
+}
+export function getConfig() { return request<AppConfig>('/api/config'); }
+export function reverseGeocode(point: LocationPoint) {
+  const params = new URLSearchParams({ lat: String(point.lat), lng: String(point.lng) });
+  return request<GeocodedPlace | null>(`/api/geocode/reverse?${params}`);
+}
+export function searchPlaces(query: string) {
+  return request<GeocodedPlace[]>(`/api/geocode/search?q=${encodeURIComponent(query.trim())}`);
+}
+export function estimateCost(pickup: LocationPoint, destination: LocationPoint) {
+  if (!isValidPoint(pickup) || !isValidPoint(destination)) throw new Error('Pilih titik jemput dan tujuan yang valid.');
+  return request<Estimate>('/api/estimate?geometry=true', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pickup, destination }) });
+}

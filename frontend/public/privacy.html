@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#073b7a" />
+    <link rel="icon" type="image/png" href="/antarfix-logo-clean.png" />
+    <title>Privasi lokasi — AntarFix Estimator</title>
+    <style>
+      :root { color: #123e6d; background: #f4f8fc; font-family: Arial, sans-serif; }
+      * { box-sizing: border-box; }
+      body { margin: 0; padding: 32px 18px; line-height: 1.65; }
+      main { width: min(720px, 100%); margin: auto; padding: 30px; border: 1px solid #d6e3ef; border-radius: 20px; background: #fff; box-shadow: 0 18px 50px #073b7a12; }
+      header { display: flex; align-items: center; gap: 14px; padding-bottom: 20px; border-bottom: 1px solid #e4edf5; }
+      header img { width: 72px; height: auto; }
+      h1 { margin: 0; color: #073b7a; font-size: clamp(24px, 5vw, 34px); line-height: 1.2; }
+      h2 { margin: 25px 0 7px; color: #073b7a; font-size: 17px; }
+      p, li { color: #526a83; font-size: 14px; }
+      ul { padding-left: 20px; }
+      a { color: #07509a; }
+      .back { display: inline-flex; margin-top: 25px; border-radius: 10px; background: #ff5a0a; color: #fff; padding: 11px 16px; font-weight: 700; text-decoration: none; }
+      .updated { margin: 5px 0 0; color: #7b8da0; font-size: 12px; }
+      @media (max-width: 540px) { body { padding: 0; } main { min-height: 100vh; border: 0; border-radius: 0; padding: 24px 18px; } }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <img src="/antarfix-logo-clean.png" alt="AntarFix" />
+        <div>
+          <h1>Privasi lokasi</h1>
+          <p class="updated">AntarFix Estimator · diperbarui 18 September 2026</p>
+        </div>
+      </header>
+
+      <h2>Data yang digunakan</h2>
+      <p>Aplikasi menggunakan titik jemput, titik tujuan, dan lokasi perangkat jika Anda memberikan izin. Izin lokasi dapat ditolak; titik tetap bisa dipilih secara manual.</p>
+
+      <h2>Tujuan penggunaan</h2>
+      <p>Koordinat digunakan untuk mencari nama tempat, menghitung rute jalan, jarak, waktu, dan estimasi biaya. Data tersebut tidak digunakan untuk membuat akun atau melacak perjalanan setelah halaman ditutup.</p>
+
+      <h2>Layanan pendukung</h2>
+      <ul>
+        <li>OpenStreetMap menyediakan data peta dan nama tempat.</li>
+        <li>Nominatim membantu pencarian serta penerjemahan koordinat menjadi alamat.</li>
+        <li>OSRM menghitung rute, jarak, dan perkiraan waktu tempuh.</li>
+      </ul>
+      <p>Permintaan ke layanan tersebut dapat menyertakan koordinat dan informasi teknis koneksi seperti alamat IP.</p>
+
+      <h2>Penyimpanan</h2>
+      <p>AntarFix Estimator saat ini tidak memiliki akun pengguna atau database lokasi. Hasil pencarian alamat dapat disimpan sementara di memori server untuk mempercepat permintaan berikutnya dan akan hilang ketika proses server dimulai ulang.</p>
+
+      <h2>Kendali Anda</h2>
+      <p>Anda dapat mencabut izin lokasi melalui pengaturan browser, memilih titik secara manual, atau menutup halaman tanpa melakukan estimasi. Untuk pertanyaan lebih lanjut, gunakan kanal resmi AntarFix.</p>
+
+      <a class="back" href="/">Kembali ke estimator</a>
+    </main>
+  </body>
+</html>

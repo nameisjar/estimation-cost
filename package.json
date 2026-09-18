@@ -1,0 +1,17 @@
+{
+  "name": "antarfix-estimator",
+  "version": "1.0.0",
+  "private": true,
+  "engines": { "node": ">=22.12.0" },
+  "scripts": {
+    "install:apps": "npm --prefix backend ci && npm --prefix frontend ci",
+    "dev": "concurrently -k -n API,WEB \"npm --prefix backend run dev\" \"npm --prefix frontend run dev\"",
+    "build": "npm --prefix backend run build && npm --prefix frontend run build",
+    "typecheck": "npm --prefix backend run typecheck && npm --prefix frontend run typecheck",
+    "lint": "node --check ecosystem.config.js && npm --prefix backend run lint && npm --prefix frontend run lint",
+    "test": "npm --prefix backend test && npm --prefix frontend test",
+    "test:smoke": "npm --prefix backend run test:smoke",
+    "start:api": "npm --prefix backend start"
+  },
+  "devDependencies": { "concurrently": "^9.2.0" }
+}
