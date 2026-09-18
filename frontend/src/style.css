@@ -210,10 +210,8 @@ body:has(.place-picker-backdrop){overflow:hidden}
 .center-picker-target{--target-color:#ff5a0a;position:absolute;z-index:550;left:50%;top:50%;width:72px;height:90px;pointer-events:none;transform:translate(-50%,-50%)}
 .center-picker-target.pickup{--target-color:#073b7a}
 .center-picker-badge{position:absolute;left:50%;top:50%;width:36px;height:36px;display:grid;place-items:center;border:3px solid #fff;border-radius:50%;background:var(--target-color);color:#fff;font-family:Manrope,sans-serif;box-shadow:0 6px 16px #073b7a42;transform:translate(-50%,-66px);transition:transform .18s cubic-bezier(.2,.8,.2,1),box-shadow .18s ease}
-.center-picker-badge:after{content:'';position:absolute;left:50%;top:100%;width:2px;height:18px;border-radius:2px;background:var(--target-color);box-shadow:0 0 0 1px #fff;transform:translateX(-50%)}
+.center-picker-badge:after{content:'';position:absolute;left:50%;top:100%;width:2px;height:29px;border-radius:2px;background:var(--target-color);box-shadow:0 0 0 1px #fff;transform:translateX(-50%)}
 .center-picker-badge b{font-size:13px;line-height:1}
-.precision-reticle{position:absolute;left:50%;top:50%;width:42px;height:42px;transform:translate(-50%,-50%);background:linear-gradient(var(--target-color),var(--target-color)) center top/2px 11px no-repeat,linear-gradient(var(--target-color),var(--target-color)) center bottom/2px 11px no-repeat,linear-gradient(90deg,var(--target-color),var(--target-color)) left center/11px 2px no-repeat,linear-gradient(90deg,var(--target-color),var(--target-color)) right center/11px 2px no-repeat;filter:drop-shadow(0 0 1px #fff) drop-shadow(0 1px 2px #073b7a38)}
-.precision-reticle b{position:absolute;left:50%;top:50%;width:8px;height:8px;border:2px solid #fff;border-radius:50%;background:var(--target-color);box-shadow:0 0 0 2px var(--target-color);transform:translate(-50%,-50%)}
 .center-picker-target.moving .center-picker-badge{transform:translate(-50%,-76px);box-shadow:0 11px 20px #073b7a32}
 .compact-reference-marker .marker-pin{transform:scale(.72);transform-origin:50% 100%;opacity:.82;animation:none}
 .estimator-layout{margin-top:16px}
@@ -231,12 +229,7 @@ body:has(.place-picker-backdrop){overflow:hidden}
 /* Clear center-pin selection feedback. */
 .map-panel.choosing-pickup:after,.map-panel.choosing-destination:after{content:'';position:absolute;z-index:400;inset:0;pointer-events:none;box-shadow:inset 0 0 0 2px #ffffff80,inset 0 0 70px #073b7a12;animation:selection-focus-in .25s ease-out}
 .map-panel.choosing-destination:after{box-shadow:inset 0 0 0 2px #ffffff80,inset 0 0 70px #ff5a0a12}
-.center-picker-target:before{content:'';position:absolute;left:50%;top:50%;width:30px;height:30px;border:2px solid var(--target-color);border-radius:50%;opacity:.65;transform:translate(-50%,-50%);animation:center-target-pulse 1.5s ease-out infinite}
-.center-picker-target.moving:before{opacity:0;animation:none}
 .center-picker-target.settling .center-picker-badge{animation:center-badge-land .34s cubic-bezier(.22,1.35,.5,1)}
-.center-picker-target.settling .precision-reticle b{animation:center-point-confirm .4s ease-out}
 @keyframes selection-focus-in{from{opacity:0}to{opacity:1}}
-@keyframes center-target-pulse{0%{opacity:.65;transform:translate(-50%,-50%) scale(.55)}75%,100%{opacity:0;transform:translate(-50%,-50%) scale(1.45)}}
 @keyframes center-badge-land{0%{transform:translate(-50%,-76px) scale(.96)}65%{transform:translate(-50%,-63px) scale(1.04)}100%{transform:translate(-50%,-66px) scale(1)}}
-@keyframes center-point-confirm{0%{box-shadow:0 0 0 2px var(--target-color)}50%{box-shadow:0 0 0 8px #ffffff00}100%{box-shadow:0 0 0 2px var(--target-color)}}
-@media(prefers-reduced-motion:reduce){.center-picker-target:before,.center-picker-badge,.precision-reticle b{animation:none!important;transition:none!important}}
+@media(prefers-reduced-motion:reduce){.center-picker-badge{animation:none!important;transition:none!important}}

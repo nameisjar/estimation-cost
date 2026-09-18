@@ -242,7 +242,6 @@ onBeforeUnmount(() => {
     <div v-if="notice" class="map-notice" role="status">{{ notice }} <button aria-label="Tutup pemberitahuan peta" @click="notice = ''">×</button></div>
     <div v-if="centerPicking" class="center-picker-target" :class="[selection === 'pickup' ? 'pickup' : 'destination', { moving: mapMoving, settling: pinSettling }]" aria-hidden="true">
       <span class="center-picker-badge"><b>{{ selection === 'pickup' ? 'A' : 'B' }}</b></span>
-      <span class="precision-reticle"><b /></span>
     </div>
     <div v-else-if="busy || estimate || (!pickup && !destination)" class="map-hint" aria-live="polite">
       <span>{{ busy ? 'Menghitung rute perjalanan…' : estimate ? 'Rute ditemukan. Marker dapat digeser.' : 'Pilih titik untuk mulai' }}</span>
