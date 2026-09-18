@@ -248,7 +248,7 @@ onBeforeUnmount(() => {
           <path class="center-picker-extension-fill" d="M28 52V66" />
         </g>
         <g class="center-picker-body">
-          <path class="center-picker-shape" d="M28 3C15.3 3 5 13.3 5 26c0 12.2 9.6 21.8 21.1 23l.7 15Q28 66 29.2 64l.7-15C41.4 47.8 51 38.2 51 26 51 13.3 40.7 3 28 3Z" />
+          <path class="center-picker-shape" d="M28 3C15.3 3 5 13.3 5 26c0 11.2 7.9 20.6 18.5 23.1l2.9 14.8Q28 67 29.6 63.9l2.9-14.8C43.1 46.6 51 37.2 51 26 51 13.3 40.7 3 28 3Z" />
           <ellipse class="center-picker-highlight" cx="19" cy="13" rx="6" ry="3.2" />
           <text x="28" y="32">{{ selection === 'pickup' ? 'A' : 'B' }}</text>
         </g>

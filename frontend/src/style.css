@@ -211,8 +211,8 @@ body:has(.place-picker-backdrop){overflow:hidden}
 .center-picker-target{--target-color:#ff5a0a;--target-light:#ff7a3d;position:absolute;z-index:550;left:50%;top:50%;width:72px;height:90px;pointer-events:none;transform:translate(-50%,-50%)}
 .center-picker-target.pickup{--target-color:#073b7a;--target-light:#155da5}
 .center-picker-target:after{content:'';position:absolute;left:50%;top:50%;width:20px;height:7px;border-radius:50%;background:#073b7a38;filter:blur(1px);transform:translate(-50%,-50%);transition:transform .18s ease,opacity .18s ease;animation:center-shadow-breathe 1.8s ease-in-out infinite}
-.center-picker-icon{position:absolute;z-index:1;left:50%;top:50%;width:56px;height:68px;overflow:visible;color:var(--target-color);filter:drop-shadow(0 7px 8px #073b7a42);transform:translate(-50%,-66px)}
-.center-picker-shape{fill:currentColor;stroke:#fff;stroke-width:3;stroke-linejoin:round;vector-effect:non-scaling-stroke}
+.center-picker-icon{position:absolute;z-index:1;left:50%;top:50%;width:56px;height:68px;overflow:visible;color:var(--target-color);filter:drop-shadow(0 6px 7px #073b7a38);transform:translate(-50%,-66px)}
+.center-picker-shape{fill:currentColor;stroke:#fff;stroke-width:2.5;stroke-linejoin:round;vector-effect:non-scaling-stroke}
 .center-picker-highlight{fill:#fff;opacity:.24}
 .center-picker-icon text{fill:#fff;font:500 20px Manrope,sans-serif;text-anchor:middle}
 .center-picker-body{transform-origin:28px 26px;transition:transform .2s cubic-bezier(.2,.8,.2,1)}
