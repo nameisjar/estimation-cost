@@ -245,7 +245,6 @@ body:has(.place-picker-backdrop){overflow:hidden}
 .center-selection-status.destination{border-color:#ffd0ba}
 .selection-status-icon{width:30px;height:30px;flex:0 0 30px;display:grid;place-items:center;border-radius:9px;background:#dceeff;color:#07509a}
 .center-selection-status.destination .selection-status-icon{background:#fff0e8;color:#d94d05}
-.center-selection-status.ready .selection-status-icon{background:#e6f3e2;color:#397337}
 .center-selection-status>span:last-child{min-width:0}
 .center-selection-status strong,.center-selection-status small{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .center-selection-status strong{font-size:10px}
