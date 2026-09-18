@@ -1,17 +1,18 @@
 <script setup lang="ts">
 import { computed, onMounted, onBeforeUnmount, watch, ref } from 'vue';
 import L from 'leaflet';
-import { LoaderCircle, LocateFixed, Maximize2 } from 'lucide-vue-next';
+import { Check, LoaderCircle, LocateFixed, Maximize2 } from 'lucide-vue-next';
 import 'leaflet/dist/leaflet.css';
 import type { LocationPoint, Selection, Estimate } from '../types';
 
-const props = defineProps<{ pickup: LocationPoint | null; destination: LocationPoint | null; selection: Selection | null; estimate: Estimate | null; busy: boolean }>();
+const props = defineProps<{ pickup: LocationPoint | null; destination: LocationPoint | null; selection: Selection | null; estimate: Estimate | null; busy: boolean; resolvingPreview: boolean }>();
 const emit = defineEmits<{ choose: [point: LocationPoint, target: Selection]; preview: [point: LocationPoint, target: Selection]; 'preview-start': [target: Selection] }>();
 const container = ref<HTMLDivElement>();
 const notice = ref('');
 const locationPending = ref(false);
 const centerPoint = ref<LocationPoint | null>(null);
 const mapMoving = ref(false);
+const pinSettling = ref(false);
 const centerPicking = computed(() => !!props.selection && !props.busy);
 let map: L.Map;
 let pickupMarker: L.Marker | null = null;
@@ -22,6 +23,7 @@ let userLocationMarker: L.Marker | null = null;
 let accuracyCircle: L.Circle | null = null;
 let observer: ResizeObserver;
 let noticeTimer: ReturnType<typeof setTimeout> | undefined;
+let settleTimer: ReturnType<typeof setTimeout> | undefined;
 let alive = true;
 
 function icon(letter: string) {
@@ -196,9 +198,23 @@ onMounted(() => {
   map = L.map(container.value!, { zoomControl: false, scrollWheelZoom: false }).setView([-8.4932, 140.4018], 14);
   L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap</a> contributors' }).addTo(map).on('tileerror', () => { showNotice('Sebagian peta belum dimuat. Periksa koneksi internet Anda.'); });
   L.control.zoom({ position: 'bottomright' }).addTo(map);
-  map.on('movestart', () => { if (centerPicking.value && props.selection) { mapMoving.value = true; emit('preview-start', props.selection); } });
+  map.on('movestart', () => {
+    if (centerPicking.value && props.selection) {
+      if (settleTimer) clearTimeout(settleTimer);
+      pinSettling.value = false;
+      mapMoving.value = true;
+      emit('preview-start', props.selection);
+    }
+  });
   map.on('move', syncCenterPoint);
-  map.on('moveend', () => { if (centerPicking.value) { publishCenterPreview(); mapMoving.value = false; } });
+  map.on('moveend', () => {
+    if (centerPicking.value) {
+      publishCenterPreview();
+      mapMoving.value = false;
+      pinSettling.value = true;
+      settleTimer = setTimeout(() => { if (alive) pinSettling.value = false; }, 360);
+    }
+  });
   map.on('click', event => {
     if (!props.selection || props.busy) return;
     if (centerPicking.value) map.panTo(event.latlng);
@@ -212,6 +228,7 @@ onMounted(() => {
 onBeforeUnmount(() => {
   alive = false;
   if (noticeTimer) clearTimeout(noticeTimer);
+  if (settleTimer) clearTimeout(settleTimer);
   observer?.disconnect();
   map?.remove();
 });
@@ -222,7 +239,18 @@ onBeforeUnmount(() => {
     <div ref="container" class="leaflet-map" :class="{ 'map-selecting': selection && !busy }" />
     <div class="map-actions"><button type="button" :disabled="locationPending" aria-label="Tampilkan lokasi saya" title="Lokasi saya" @click="locate()"><LoaderCircle v-if="locationPending" :size="19" class="spinner" /><LocateFixed v-else :size="19" /></button><button type="button" aria-label="Lihat seluruh rute" title="Lihat seluruh rute" @click="fitMap"><Maximize2 :size="18" /></button></div>
     <div v-if="notice" class="map-notice" role="status">{{ notice }} <button aria-label="Tutup pemberitahuan peta" @click="notice = ''">×</button></div>
-    <div v-if="centerPicking" class="center-picker-pin" :class="[selection === 'pickup' ? 'pickup' : 'destination', { moving: mapMoving }]" aria-hidden="true"><span class="center-picker-marker"><b>{{ selection === 'pickup' ? 'A' : 'B' }}</b></span><i /></div>
+    <div v-if="centerPicking" class="center-picker-pin" :class="[selection === 'pickup' ? 'pickup' : 'destination', { moving: mapMoving, settling: pinSettling }]" aria-hidden="true"><span class="center-picker-marker"><b>{{ selection === 'pickup' ? 'A' : 'B' }}</b></span><i /></div>
+    <div v-if="centerPicking" class="center-selection-status" :class="[selection === 'destination' ? 'destination' : 'pickup', { moving: mapMoving, resolving: !mapMoving && resolvingPreview, ready: !mapMoving && !resolvingPreview }]" role="status" aria-live="polite">
+      <span class="selection-status-icon">
+        <span v-if="mapMoving" class="moving-dots" aria-hidden="true"><i /><i /><i /></span>
+        <LoaderCircle v-else-if="resolvingPreview" :size="17" class="spinner" />
+        <Check v-else :size="17" />
+      </span>
+      <span>
+        <strong>{{ mapMoving ? 'Geser peta ke lokasi' : resolvingPreview ? 'Mencari nama lokasi…' : 'Titik siap digunakan' }}</strong>
+        <small>{{ mapMoving ? `Pin ${selection === 'pickup' ? 'A' : 'B'} tetap berada di tengah` : resolvingPreview ? 'Tunggu sebentar' : 'Tekan tombol konfirmasi di bawah' }}</small>
+      </span>
+    </div>
     <div v-else class="map-hint" :class="{ 'drag-hint': (pickup || destination) && !busy }" aria-live="polite">
       <span>{{ busy ? 'Menghitung rute perjalanan…' : selection === 'pickup' && pickup ? 'Geser marker A atau ketuk peta untuk memindahkan' : selection === 'pickup' ? 'Ketuk peta untuk memilih titik jemput' : estimate ? 'Rute ditemukan. Marker dapat digeser.' : pickup || destination ? 'Tekan dan geser marker untuk menyesuaikan lokasi' : 'Pilih titik untuk mulai' }}</span>
     </div>

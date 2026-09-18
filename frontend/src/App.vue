@@ -32,6 +32,7 @@ import {
   formatPoint,
   whatsappUrl,
 } from "./utils/format";
+import { locationWithFallback } from "./utils/location-label";
 import type {
   LocationPoint,
   Selection,
@@ -110,6 +111,10 @@ const actionLabel = computed(() =>
 const mobileActionHint = computed(() =>
   busy.value
     ? "Perjalananmu sedang dihitung"
+    : selection.value && resolvingCenterPreview.value
+    ? "Mencari nama lokasi..."
+    : selection.value && centerPreviewPoint.value
+    ? "Titik siap digunakan"
     : selection.value === "pickup"
     ? "Geser peta sampai pin A tepat"
     : selection.value === "destination"
@@ -125,7 +130,7 @@ const pickupDisplayName = computed(() => {
     if (centerPreviewTarget.value === "pickup" && centerPreviewPlace.value)
       return centerPreviewPlace.value.name;
     return centerPreviewPoint.value
-      ? "Lokasi jemput di bawah pin A"
+      ? "Titik jemput di peta"
       : "Geser peta untuk memilih jemput";
   }
   return (
@@ -133,7 +138,7 @@ const pickupDisplayName = computed(() => {
     (resolvingPlace.value.pickup
       ? "Mencari nama lokasi…"
       : pickup.value
-      ? "Titik jemput dipilih"
+      ? "Titik jemput pilihan"
       : "Pilih titik jemput")
   );
 });
@@ -156,7 +161,7 @@ const destinationDisplayName = computed(() => {
     if (centerPreviewTarget.value === "destination" && centerPreviewPlace.value)
       return centerPreviewPlace.value.name;
     return centerPreviewPoint.value
-      ? "Lokasi tujuan di bawah pin B"
+      ? "Titik tujuan di peta"
       : "Geser peta untuk memilih tujuan";
   }
   return (
@@ -164,7 +169,7 @@ const destinationDisplayName = computed(() => {
     (resolvingPlace.value.destination
       ? "Mencari nama lokasi…"
       : destination.value
-      ? "Titik tujuan dipilih"
+      ? "Titik tujuan pilihan"
       : "Pilih titik tujuan")
   );
 });
@@ -285,8 +290,9 @@ async function pickOnMap() {
 }
 
 function setPlace(target: Selection, place: GeocodedPlace | null) {
-  if (target === "pickup") pickupPlace.value = place;
-  else destinationPlace.value = place;
+  const normalizedPlace = locationWithFallback(place, target);
+  if (target === "pickup") pickupPlace.value = normalizedPlace;
+  else destinationPlace.value = normalizedPlace;
 }
 
 async function resolvePlace(point: LocationPoint, target: Selection, version: number) {
@@ -333,7 +339,7 @@ function previewCenter(point: LocationPoint, target: Selection) {
     try {
       const place = await reverseGeocode(point);
       if (centerPreviewVersion === version && selection.value === target)
-        centerPreviewPlace.value = place;
+        centerPreviewPlace.value = locationWithFallback(place, target);
     } catch {
       if (centerPreviewVersion === version) centerPreviewPlace.value = null;
     } finally {
@@ -771,6 +777,7 @@ onBeforeUnmount(clearCenterPreview);
             :selection="selection"
             :estimate="estimate"
             :busy="busy"
+            :resolving-preview="resolvingCenterPreview"
             @choose="choose"
             @preview="previewCenter"
             @preview-start="startCenterPreview"

@@ -230,3 +230,34 @@ body:has(.place-picker-backdrop){overflow:hidden}
 .inline-calculate svg:last-child,.mobile-action-bar .primary-button svg:last-child{margin-left:0}
 @media(max-width:800px){.closing-line{display:none}}
 @media(max-width:540px){.map-actions{top:11px}.map-notice{top:11px;left:11px;right:64px}.map-hint{left:11px;bottom:27px;transform:none;max-width:calc(100% - 78px)}.leaflet-control-zoom{margin-bottom:22px!important}}
+
+/* Clear center-pin selection feedback. */
+.map-panel.choosing-pickup:after,.map-panel.choosing-destination:after{content:'';position:absolute;z-index:400;inset:0;pointer-events:none;box-shadow:inset 0 0 0 2px #ffffff80,inset 0 0 70px #073b7a12;animation:selection-focus-in .25s ease-out}
+.map-panel.choosing-destination:after{box-shadow:inset 0 0 0 2px #ffffff80,inset 0 0 70px #ff5a0a12}
+.center-picker-pin{transition:transform .18s cubic-bezier(.2,.8,.2,1),filter .18s ease}
+.center-picker-pin:before{content:'';position:absolute;left:8px;bottom:-8px;width:30px;height:14px;border:2px solid #ff5a0a99;border-radius:50%;opacity:.75;animation:center-pin-pulse 1.45s ease-out infinite}
+.center-picker-pin.pickup:before{border-color:#07509a99}
+.center-picker-pin.moving{transform:translate(-50%,calc(-100% - 13px));filter:drop-shadow(0 12px 9px #073b7a30)}
+.center-picker-pin.moving:before{opacity:0;transform:scale(.55);animation:none}
+.center-picker-pin.settling .center-picker-marker{animation:center-pin-land .34s cubic-bezier(.22,1.35,.5,1)}
+.center-picker-pin.settling:before{animation:center-pin-land-ring .42s ease-out}
+.center-selection-status{position:absolute;z-index:560;left:14px;bottom:27px;max-width:calc(100% - 88px);display:flex;align-items:center;gap:9px;padding:9px 12px 9px 9px;border:1px solid #bdd7ee;border-radius:12px;background:#f7fbfff2;color:#164b80;box-shadow:0 7px 22px #073b7a1f;backdrop-filter:blur(8px);pointer-events:none;animation:selection-status-in .22s ease-out}
+.center-selection-status.destination{border-color:#ffd0ba}
+.selection-status-icon{width:30px;height:30px;flex:0 0 30px;display:grid;place-items:center;border-radius:9px;background:#dceeff;color:#07509a}
+.center-selection-status.destination .selection-status-icon{background:#fff0e8;color:#d94d05}
+.center-selection-status.ready .selection-status-icon{background:#e6f3e2;color:#397337}
+.center-selection-status>span:last-child{min-width:0}
+.center-selection-status strong,.center-selection-status small{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.center-selection-status strong{font-size:10px}
+.center-selection-status small{margin-top:2px;color:#71869a;font-size:8px}
+.moving-dots{display:flex;align-items:center;gap:3px}
+.moving-dots i{width:4px;height:4px;border-radius:50%;background:#07509a;animation:moving-dot .75s ease-in-out infinite}
+.moving-dots i:nth-child(2){animation-delay:.12s}.moving-dots i:nth-child(3){animation-delay:.24s}
+@keyframes selection-focus-in{from{opacity:0}to{opacity:1}}
+@keyframes selection-status-in{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:translateY(0)}}
+@keyframes center-pin-pulse{0%{opacity:.75;transform:scale(.55)}75%,100%{opacity:0;transform:scale(1.35)}}
+@keyframes center-pin-land{0%{transform:translateY(-8px) scale(.96)}65%{transform:translateY(2px) scale(1.03)}100%{transform:translateY(0) scale(1)}}
+@keyframes center-pin-land-ring{0%{opacity:0;transform:scale(.5)}55%{opacity:.85;transform:scale(1.25)}100%{opacity:0;transform:scale(1.55)}}
+@keyframes moving-dot{0%,100%{transform:translateY(0);opacity:.45}50%{transform:translateY(-3px);opacity:1}}
+@media(max-width:540px){.center-selection-status{left:11px;bottom:27px;max-width:calc(100% - 76px);padding:8px 10px 8px 8px}.selection-status-icon{width:28px;height:28px;flex-basis:28px}.center-selection-status strong{font-size:9px}.center-selection-status small{font-size:8px}}
+@media(prefers-reduced-motion:reduce){.center-picker-pin,.center-picker-pin:before,.center-picker-marker,.center-selection-status,.moving-dots i{animation:none!important;transition:none!important}}
