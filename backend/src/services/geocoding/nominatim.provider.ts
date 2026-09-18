@@ -41,6 +41,12 @@ function intersectBounds(first: Bounds, second: Bounds): Bounds {
   };
 }
 
+function formatBounds(bounds: Bounds): string {
+  return [bounds.left, bounds.top, bounds.right, bounds.bottom]
+    .map(value => value.toFixed(6))
+    .join(',');
+}
+
 function normalizePlace(place: NominatimPlace): GeocodedPlace | null {
   const lat = Number(place.lat);
   const lng = Number(place.lon);
@@ -81,10 +87,43 @@ export class NominatimProvider implements GeocodingProvider {
       : serviceCenter;
     const focusBounds = boundsAround(focus, this.searchRadiusKm);
     const serviceBounds = boundsAround(serviceCenter, this.serviceLimits.radiusKm);
-    const bounds = intersectBounds(focusBounds, serviceBounds);
-    return [bounds.left, bounds.top, bounds.right, bounds.bottom]
-      .map(value => value.toFixed(6))
-      .join(',');
+    return formatBounds(intersectBounds(focusBounds, serviceBounds));
+  }
+
+  private serviceViewbox(): string | null {
+    if (!this.serviceLimits) return null;
+    return formatBounds(boundsAround(
+      { lat: this.serviceLimits.centerLat, lng: this.serviceLimits.centerLng },
+      this.serviceLimits.radiusKm,
+    ));
+  }
+
+  private normalizeSearchResults(body: unknown): GeocodedPlace[] {
+    if (!Array.isArray(body)) return [];
+    const seen = new Set<string>();
+    return body
+      .map(item => normalizePlace(item as NominatimPlace))
+      .filter((place): place is GeocodedPlace => {
+        if (!place) return false;
+        if (this.serviceLimits) {
+          const center = { lat: this.serviceLimits.centerLat, lng: this.serviceLimits.centerLng };
+          if (directDistanceKm(center, place) > this.serviceLimits.radiusKm) return false;
+        }
+        const key = `${place.lat.toFixed(5)},${place.lng.toFixed(5)},${place.name.toLocaleLowerCase('id')}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      })
+      .slice(0, 8);
+  }
+
+  private async searchWithin(query: string, viewbox: string | null): Promise<GeocodedPlace[]> {
+    const params = new URLSearchParams({ format: 'jsonv2', q: query.trim(), addressdetails: '1', namedetails: '1', countrycodes: 'id', limit: '8' });
+    if (viewbox) {
+      params.set('viewbox', viewbox);
+      params.set('bounded', '1');
+    }
+    return this.normalizeSearchResults(await this.request(`/search?${params}`));
   }
 
   private cached<T>(key: string): T | undefined {
@@ -134,16 +173,13 @@ export class NominatimProvider implements GeocodingProvider {
   async search(query: string, near?: LocationPoint): Promise<GeocodedPlace[]> {
     const normalizedQuery = query.trim().toLocaleLowerCase('id');
     const viewbox = this.searchViewbox(near);
-    const key = `search:${normalizedQuery}:${viewbox || 'indonesia'}`;
+    const fallbackViewbox = this.serviceViewbox();
+    const key = `search:${normalizedQuery}:${viewbox || 'indonesia'}:${fallbackViewbox || 'none'}`;
     const cached = this.cached<GeocodedPlace[]>(key);
     if (cached !== undefined) return cached;
-    const params = new URLSearchParams({ format: 'jsonv2', q: query.trim(), addressdetails: '1', namedetails: '1', countrycodes: 'id', limit: '5' });
-    if (viewbox) {
-      params.set('viewbox', viewbox);
-      params.set('bounded', '1');
-    }
-    const body = await this.request(`/search?${params}`);
-    const results = Array.isArray(body) ? body.map(item => normalizePlace(item as NominatimPlace)).filter((place): place is GeocodedPlace => !!place) : [];
+    let results = await this.searchWithin(query, viewbox);
+    if (!results.length && fallbackViewbox && fallbackViewbox !== viewbox)
+      results = await this.searchWithin(query, fallbackViewbox);
     return this.remember(key, results, 10 * 60 * 1000);
   }
 }

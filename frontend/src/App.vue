@@ -856,6 +856,8 @@ onBeforeUnmount(clearCenterPreview);
                 maxlength="120"
                 autocomplete="off"
                 placeholder="Contoh: Warung Mie Ayam"
+                aria-controls="place-search-results"
+                :aria-expanded="searchResults.length > 0"
                 :disabled="searchBusy || busy"
               />
             </div>
@@ -871,9 +873,19 @@ onBeforeUnmount(clearCenterPreview);
               /><span>Cari</span>
             </button>
           </div>
-          <p v-if="searchError" class="search-message" role="status">{{ searchError }}</p>
+          <p v-if="searchBusy" class="search-status" role="status" aria-live="polite">
+            Mencari lokasi di sekitar area layanan…
+          </p>
+          <p v-else-if="searchError" class="search-message" role="status">
+            {{ searchError }} Pilih langsung di peta jika lokasinya belum terdaftar.
+          </p>
+          <div v-if="searchResults.length" class="search-results-meta">
+            <strong>{{ searchResults.length }} lokasi ditemukan</strong>
+            <span>Pilih lokasi yang paling sesuai</span>
+          </div>
           <ul
             v-if="searchResults.length"
+            id="place-search-results"
             class="search-results"
             aria-label="Hasil pencarian lokasi"
           >

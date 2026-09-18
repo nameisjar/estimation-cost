@@ -35,7 +35,40 @@ test('Nominatim provider normalizes places, identifies the app and caches repeat
     assert.match(calls[1]!.url, /countrycodes=id/);
     assert.match(calls[1]!.url, /bounded=1/);
     assert.match(calls[1]!.url, /viewbox=/);
+    assert.match(calls[1]!.url, /limit=8/);
     assert.equal(calls[0]!.headers.get('user-agent'), 'AntarFixEstimator/Test');
     assert.equal(calls[0]!.headers.get('referer'), 'https://estimator.example');
+  } finally { globalThis.fetch = originalFetch; }
+});
+
+test('Nominatim search retries across the service area when nearby results are empty', async () => {
+  const originalFetch = globalThis.fetch;
+  const calls: string[] = [];
+  globalThis.fetch = async input => {
+    calls.push(String(input));
+    const body = calls.length === 1
+      ? []
+      : [{ lat: '-8.4000', lon: '140.4000', name: 'Warung Ayam Kampung', display_name: 'Warung Ayam Kampung, Merauke, Papua Selatan' }];
+    return new Response(JSON.stringify(body), { status: 200, headers: { 'Content-Type': 'application/json' } });
+  };
+  try {
+    const provider = new NominatimProvider(
+      'https://nominatim.example',
+      1000,
+      'AntarFixEstimator/Test',
+      'https://estimator.example',
+      {
+        minimumIntervalMs: 0,
+        searchRadiusKm: 10,
+        serviceLimits: { centerLat: -8.4932, centerLng: 140.4018, radiusKm: 50, maxDistanceKm: 50 },
+      },
+    );
+    const results = await provider.search('Warung Ayam', { lat: -8.4932, lng: 140.4018 });
+    assert.equal(results[0]?.name, 'Warung Ayam Kampung');
+    assert.equal(calls.length, 2);
+    assert.notEqual(new URL(calls[0]!).searchParams.get('viewbox'), new URL(calls[1]!).searchParams.get('viewbox'));
+    assert.equal(new URL(calls[1]!).searchParams.get('bounded'), '1');
+    assert.deepEqual(await provider.search('Warung Ayam', { lat: -8.4932, lng: 140.4018 }), results);
+    assert.equal(calls.length, 2);
   } finally { globalThis.fetch = originalFetch; }
 });
