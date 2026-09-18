@@ -186,10 +186,15 @@ const bookingUrl = computed(() =>
   estimate.value && settings.value && pickup.value && destination.value
     ? whatsappUrl(
         settings.value.whatsappNumber,
-        pickup.value,
-        destination.value,
-        estimate.value.distanceKm,
-        estimate.value.pricing.total
+        {
+          pickup: pickup.value,
+          destination: destination.value,
+          pickupPlace: pickupPlace.value,
+          destinationPlace: destinationPlace.value,
+          distanceKm: estimate.value.distanceKm,
+          durationMinutes: estimate.value.durationMinutes,
+          total: estimate.value.pricing.total,
+        }
       )
     : null
 );

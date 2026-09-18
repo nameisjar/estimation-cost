@@ -5,8 +5,23 @@ test('Rupiah formatting', () => { assert.equal(formatCurrency(8000), 'Rp8.000');
 test('duration formatting', () => { assert.equal(formatDuration(5), '±5 menit'); assert.equal(formatDuration(65), '±1 jam 5 menit'); assert.equal(formatDuration(60), '±1 jam'); assert.equal(formatDuration(0.4), '±1 menit'); });
 test('WhatsApp requires configured number and encodes coordinates and price', () => {
   const a = { lat: -8.4932, lng: 140.4018 }; const b = { lat: -8.4965, lng: 140.4072 };
-  assert.equal(whatsappUrl('', a, b, 5.2, 18000), null);
-  const url = new URL(whatsappUrl('6281234567890', a, b, 5.2, 18000)!);
+  const details = {
+    pickup: a,
+    destination: b,
+    pickupPlace: { ...a, name: 'Warung Mie Ayam', address: 'Jalan Mandala, Merauke' },
+    destinationPlace: { ...b, name: 'Lapangan Jawa', address: 'Karang Indah, Merauke' },
+    distanceKm: 5.2,
+    durationMinutes: 12,
+    total: 18000,
+  };
+  assert.equal(whatsappUrl('', details), null);
+  const url = new URL(whatsappUrl('6281234567890', details)!);
   assert.equal(url.hostname, 'wa.me'); assert.equal(url.pathname, '/6281234567890');
-  const message = url.searchParams.get('text')!; assert.ok(message.includes('-8.49320, 140.40180')); assert.ok(message.includes('Rp18.000')); assert.ok(message.includes('\n\n'));
+  const message = url.searchParams.get('text')!;
+  assert.ok(message.includes('*A. Titik jemput*\nWarung Mie Ayam\nJalan Mandala, Merauke'));
+  assert.ok(message.includes('Peta: https://www.google.com/maps?q=-8.4932,140.4018'));
+  assert.ok(message.includes('*B. Titik tujuan*\nLapangan Jawa'));
+  assert.ok(message.includes('Waktu tempuh: sekitar 12 menit'));
+  assert.ok(message.includes('Biaya: *Rp18.000*'));
+  assert.ok(!message.includes('�'));
 });
