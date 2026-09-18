@@ -45,6 +45,7 @@ PowerShell: `npm.cmd` jika execution policy memblokir `npm.ps1`, dan `Copy-Item 
 | GEOCODING_BASE_URL | https://nominatim.openstreetmap.org | Endpoint pencarian dan reverse geocoding |
 | GEOCODING_TIMEOUT_MS | 10000 | Timeout request geocoding |
 | GEOCODING_USER_AGENT | AntarFixEstimator/1.0 (...) | Identitas aplikasi untuk provider geocoding; sesuaikan saat deployment |
+| GEOCODING_SEARCH_RADIUS_KM | 20 | Radius pencarian nama tempat dari fokus pencarian; maksimal sebesar radius layanan |
 | SERVICE_AREA_CENTER_LAT | -8.4932 | Latitude pusat area layanan |
 | SERVICE_AREA_CENTER_LNG | 140.4018 | Longitude pusat area layanan |
 | SERVICE_AREA_RADIUS_KM | 50 | Radius maksimum titik jemput/tujuan dari pusat layanan |
@@ -112,7 +113,7 @@ Latitude harus number finite -90 sampai 90; longitude number finite -180 sampai 
 
 ### GET /api/geocode/search dan /api/geocode/reverse
 
-`GET /api/geocode/search?q=Merauke` mencari maksimal lima nama tempat/alamat di Indonesia. Query harus 3–120 karakter dan dipanggil setelah pengguna menekan tombol Cari. `GET /api/geocode/reverse?lat=-8.4932&lng=140.4018` mencari objek OpenStreetMap terdekat dari koordinat.
+`GET /api/geocode/search?q=Merauke&lat=-8.4932&lng=140.4018` mencari maksimal lima nama tempat/alamat di sekitar fokus tersebut. `lat` dan `lng` bersifat opsional tetapi harus dikirim berpasangan; tanpa fokus, backend memakai pusat area layanan. Query harus 3–120 karakter dan dipanggil setelah pengguna menekan tombol Cari. Radius default 20 km dibatasi lagi oleh area layanan menggunakan viewbox Nominatim. `GET /api/geocode/reverse?lat=-8.4932&lng=140.4018` mencari objek OpenStreetMap terdekat dari koordinat.
 
 Provider mengirim `User-Agent`, referer, bahasa Indonesia, membatasi request Nominatim publik menjadi satu per detik, dan memakai cache memori (10 menit untuk pencarian, 24 jam untuk reverse). Nama tempat tidak dijamin tersedia; hasil bergantung pada data OpenStreetMap dan koordinat tetap dipakai sebagai fallback. Atur `GEOCODING_USER_AGENT` ke identitas deployment yang nyata dan ikuti [Nominatim Usage Policy](https://operations.osmfoundation.org/policies/nominatim/).
 

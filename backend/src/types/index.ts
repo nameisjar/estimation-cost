@@ -16,5 +16,5 @@ export interface RoutingProvider {
 }
 export interface GeocodingProvider {
   reverse(point: LocationPoint): Promise<GeocodedPlace | null>;
-  search(query: string): Promise<GeocodedPlace[]>;
+  search(query: string, near?: LocationPoint): Promise<GeocodedPlace[]>;
 }

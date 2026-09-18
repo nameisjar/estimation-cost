@@ -20,8 +20,14 @@ export function reverseGeocode(point: LocationPoint) {
   const params = new URLSearchParams({ lat: String(point.lat), lng: String(point.lng) });
   return request<GeocodedPlace | null>(`/api/geocode/reverse?${params}`);
 }
-export function searchPlaces(query: string) {
-  return request<GeocodedPlace[]>(`/api/geocode/search?q=${encodeURIComponent(query.trim())}`);
+export function searchPlaces(query: string, near?: LocationPoint | null) {
+  const params = new URLSearchParams({ q: query.trim() });
+  const focus = near ?? null;
+  if (isValidPoint(focus)) {
+    params.set('lat', String(focus.lat));
+    params.set('lng', String(focus.lng));
+  }
+  return request<GeocodedPlace[]>(`/api/geocode/search?${params}`);
 }
 export function estimateCost(pickup: LocationPoint, destination: LocationPoint) {
   if (!isValidPoint(pickup) || !isValidPoint(destination)) throw new Error('Pilih titik jemput dan tujuan yang valid.');

@@ -207,15 +207,14 @@ body:has(.place-picker-backdrop){overflow:hidden}
 .map-hint{bottom:28px;display:block;max-width:calc(100% - 100px);padding:8px 11px;text-align:center}
 .map-panel.choosing-pickup{border-color:#75a8d7;box-shadow:0 0 0 3px #07509a12,0 12px 34px #073b7a0d}
 .map-panel.choosing-destination{border-color:#ff9d70;box-shadow:0 0 0 3px #ff5a0a12,0 12px 34px #073b7a0d}
-.center-picker-pin{position:absolute;z-index:550;left:50%;top:50%;width:46px;height:58px;pointer-events:none;transform:translate(-50%,-100%);transition:transform .16s ease;filter:drop-shadow(0 7px 7px #073b7a38)}
-.center-picker-pin.moving{transform:translate(-50%,calc(-100% - 9px))}
-.center-picker-marker{position:absolute;left:3px;top:0;width:40px;height:40px;display:grid;place-items:center;border:3px solid #fff;border-radius:50%;background:#ff5a0a;color:#fff;font-family:Manrope,sans-serif;box-shadow:0 4px 12px #ff5a0a55}
-.center-picker-marker:after{content:'';position:absolute;left:11px;bottom:-7px;width:12px;height:12px;transform:rotate(45deg);background:#ff5a0a;border-right:3px solid #fff;border-bottom:3px solid #fff;z-index:-1}
-.center-picker-pin.pickup .center-picker-marker,.center-picker-pin.pickup .center-picker-marker:after{background:#073b7a}
-.center-picker-pin.pickup .center-picker-marker{box-shadow:0 4px 12px #073b7a55}
-.center-picker-marker b{font-size:14px;line-height:1}
-.center-picker-pin>i{position:absolute;left:16px;bottom:0;width:14px;height:5px;border-radius:50%;background:#073b7a42;transition:transform .16s ease,opacity .16s ease}
-.center-picker-pin.moving>i{transform:scale(.72);opacity:.55}
+.center-picker-target{--target-color:#ff5a0a;position:absolute;z-index:550;left:50%;top:50%;width:72px;height:90px;pointer-events:none;transform:translate(-50%,-50%)}
+.center-picker-target.pickup{--target-color:#073b7a}
+.center-picker-badge{position:absolute;left:50%;top:50%;width:36px;height:36px;display:grid;place-items:center;border:3px solid #fff;border-radius:50%;background:var(--target-color);color:#fff;font-family:Manrope,sans-serif;box-shadow:0 6px 16px #073b7a42;transform:translate(-50%,-66px);transition:transform .18s cubic-bezier(.2,.8,.2,1),box-shadow .18s ease}
+.center-picker-badge:after{content:'';position:absolute;left:50%;top:100%;width:2px;height:18px;border-radius:2px;background:var(--target-color);box-shadow:0 0 0 1px #fff;transform:translateX(-50%)}
+.center-picker-badge b{font-size:13px;line-height:1}
+.precision-reticle{position:absolute;left:50%;top:50%;width:42px;height:42px;transform:translate(-50%,-50%);background:linear-gradient(var(--target-color),var(--target-color)) center top/2px 11px no-repeat,linear-gradient(var(--target-color),var(--target-color)) center bottom/2px 11px no-repeat,linear-gradient(90deg,var(--target-color),var(--target-color)) left center/11px 2px no-repeat,linear-gradient(90deg,var(--target-color),var(--target-color)) right center/11px 2px no-repeat;filter:drop-shadow(0 0 1px #fff) drop-shadow(0 1px 2px #073b7a38)}
+.precision-reticle b{position:absolute;left:50%;top:50%;width:8px;height:8px;border:2px solid #fff;border-radius:50%;background:var(--target-color);box-shadow:0 0 0 2px var(--target-color);transform:translate(-50%,-50%)}
+.center-picker-target.moving .center-picker-badge{transform:translate(-50%,-76px);box-shadow:0 11px 20px #073b7a32}
 .compact-reference-marker .marker-pin{transform:scale(.72);transform-origin:50% 100%;opacity:.82;animation:none}
 .estimator-layout{margin-top:16px}
 .swap-row{height:36px;justify-content:flex-end;padding-right:10px}
@@ -232,15 +231,12 @@ body:has(.place-picker-backdrop){overflow:hidden}
 /* Clear center-pin selection feedback. */
 .map-panel.choosing-pickup:after,.map-panel.choosing-destination:after{content:'';position:absolute;z-index:400;inset:0;pointer-events:none;box-shadow:inset 0 0 0 2px #ffffff80,inset 0 0 70px #073b7a12;animation:selection-focus-in .25s ease-out}
 .map-panel.choosing-destination:after{box-shadow:inset 0 0 0 2px #ffffff80,inset 0 0 70px #ff5a0a12}
-.center-picker-pin{transition:transform .18s cubic-bezier(.2,.8,.2,1),filter .18s ease}
-.center-picker-pin:before{content:'';position:absolute;left:8px;bottom:-8px;width:30px;height:14px;border:2px solid #ff5a0a99;border-radius:50%;opacity:.75;animation:center-pin-pulse 1.45s ease-out infinite}
-.center-picker-pin.pickup:before{border-color:#07509a99}
-.center-picker-pin.moving{transform:translate(-50%,calc(-100% - 13px));filter:drop-shadow(0 12px 9px #073b7a30)}
-.center-picker-pin.moving:before{opacity:0;transform:scale(.55);animation:none}
-.center-picker-pin.settling .center-picker-marker{animation:center-pin-land .34s cubic-bezier(.22,1.35,.5,1)}
-.center-picker-pin.settling:before{animation:center-pin-land-ring .42s ease-out}
+.center-picker-target:before{content:'';position:absolute;left:50%;top:50%;width:30px;height:30px;border:2px solid var(--target-color);border-radius:50%;opacity:.65;transform:translate(-50%,-50%);animation:center-target-pulse 1.5s ease-out infinite}
+.center-picker-target.moving:before{opacity:0;animation:none}
+.center-picker-target.settling .center-picker-badge{animation:center-badge-land .34s cubic-bezier(.22,1.35,.5,1)}
+.center-picker-target.settling .precision-reticle b{animation:center-point-confirm .4s ease-out}
 @keyframes selection-focus-in{from{opacity:0}to{opacity:1}}
-@keyframes center-pin-pulse{0%{opacity:.75;transform:scale(.55)}75%,100%{opacity:0;transform:scale(1.35)}}
-@keyframes center-pin-land{0%{transform:translateY(-8px) scale(.96)}65%{transform:translateY(2px) scale(1.03)}100%{transform:translateY(0) scale(1)}}
-@keyframes center-pin-land-ring{0%{opacity:0;transform:scale(.5)}55%{opacity:.85;transform:scale(1.25)}100%{opacity:0;transform:scale(1.55)}}
-@media(prefers-reduced-motion:reduce){.center-picker-pin,.center-picker-pin:before,.center-picker-marker{animation:none!important;transition:none!important}}
+@keyframes center-target-pulse{0%{opacity:.65;transform:translate(-50%,-50%) scale(.55)}75%,100%{opacity:0;transform:translate(-50%,-50%) scale(1.45)}}
+@keyframes center-badge-land{0%{transform:translate(-50%,-76px) scale(.96)}65%{transform:translate(-50%,-63px) scale(1.04)}100%{transform:translate(-50%,-66px) scale(1)}}
+@keyframes center-point-confirm{0%{box-shadow:0 0 0 2px var(--target-color)}50%{box-shadow:0 0 0 8px #ffffff00}100%{box-shadow:0 0 0 2px var(--target-color)}}
+@media(prefers-reduced-motion:reduce){.center-picker-target:before,.center-picker-badge,.precision-reticle b{animation:none!important;transition:none!important}}

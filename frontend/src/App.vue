@@ -62,6 +62,7 @@ const manualLng = ref("");
 const manualError = ref("");
 const pickupPlace = ref<GeocodedPlace | null>(null);
 const destinationPlace = ref<GeocodedPlace | null>(null);
+const deviceLocation = ref<LocationPoint | null>(null);
 const centerPreviewTarget = ref<Selection | null>(null);
 const centerPreviewPlace = ref<GeocodedPlace | null>(null);
 const centerPreviewPoint = ref<LocationPoint | null>(null);
@@ -385,7 +386,10 @@ async function submitPlaceSearch() {
   }
   searchBusy.value = true;
   try {
-    const results = await searchPlaces(query);
+    const searchFocus = searchTarget.value === "destination"
+      ? pickup.value || deviceLocation.value
+      : deviceLocation.value || pickup.value;
+    const results = await searchPlaces(query, searchFocus);
     if (searchVersion !== version) return;
     searchResults.value = results;
     if (!searchResults.value.length)
@@ -776,6 +780,7 @@ onBeforeUnmount(clearCenterPreview);
             @choose="choose"
             @preview="previewCenter"
             @preview-start="startCenterPreview"
+            @located="deviceLocation = $event"
           />
           <div class="map-caption"><span>Jarak mengikuti rute jalan.</span></div>
         </div>

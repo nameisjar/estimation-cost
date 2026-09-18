@@ -76,7 +76,7 @@ File `.env` disimpan lokal di komputer/server dan diabaikan Git. Commit `.env.ex
 - GET /api/config: tarif aktif, batas layanan, dan nomor WhatsApp bisnis publik.
 - POST /api/estimate: menerima pickup/destination dengan lat/lng berupa number; default OSRM overview=false.
 - POST /api/estimate?geometry=true: menambahkan geometri rute jalan GeoJSON dalam response untuk Leaflet.
-- GET /api/geocode/search?q=Merauke: mencari maksimal lima tempat/alamat di Indonesia setelah pengguna menekan tombol Cari.
+- GET /api/geocode/search?q=Merauke&lat=-8.4932&lng=140.4018: mencari maksimal lima tempat/alamat di sekitar fokus dalam radius lokal dan area layanan.
 - GET /api/geocode/reverse?lat=-8.4932&lng=140.4018: menerjemahkan koordinat menjadi nama dan alamat terdekat.
 
 ```text

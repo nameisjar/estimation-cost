@@ -1,5 +1,6 @@
 import { ApiError } from '../../errors.js';
-import type { GeocodedPlace, GeocodingProvider, LocationPoint } from '../../types/index.js';
+import type { GeocodedPlace, GeocodingProvider, LocationPoint, ServiceLimits } from '../../types/index.js';
+import { directDistanceKm } from '../service-area/service-area.service.js';
 
 type NominatimPlace = {
   lat?: string;
@@ -12,6 +13,33 @@ type NominatimPlace = {
 };
 
 type CacheEntry<T> = { expiresAt: number; value: T };
+type NominatimOptions = {
+  minimumIntervalMs?: number;
+  searchRadiusKm?: number;
+  serviceLimits?: ServiceLimits;
+};
+type Bounds = { left: number; top: number; right: number; bottom: number };
+
+function boundsAround(point: LocationPoint, radiusKm: number): Bounds {
+  const latitudeDelta = radiusKm / 111.32;
+  const longitudeScale = Math.max(0.1, Math.cos(point.lat * Math.PI / 180));
+  const longitudeDelta = radiusKm / (111.32 * longitudeScale);
+  return {
+    left: point.lng - longitudeDelta,
+    top: point.lat + latitudeDelta,
+    right: point.lng + longitudeDelta,
+    bottom: point.lat - latitudeDelta,
+  };
+}
+
+function intersectBounds(first: Bounds, second: Bounds): Bounds {
+  return {
+    left: Math.max(first.left, second.left),
+    top: Math.min(first.top, second.top),
+    right: Math.min(first.right, second.right),
+    bottom: Math.max(first.bottom, second.bottom),
+  };
+}
 
 function normalizePlace(place: NominatimPlace): GeocodedPlace | null {
   const lat = Number(place.lat);
@@ -29,14 +57,35 @@ export class NominatimProvider implements GeocodingProvider {
   private queue: Promise<void> = Promise.resolve();
   private nextRequestAt = 0;
   private readonly cache = new Map<string, CacheEntry<GeocodedPlace | GeocodedPlace[] | null>>();
+  private readonly minimumIntervalMs: number;
+  private readonly searchRadiusKm: number;
+  private readonly serviceLimits?: ServiceLimits;
 
   constructor(
     private readonly baseUrl: string,
     private readonly timeoutMs: number,
     private readonly userAgent: string,
     private readonly referer: string,
-    private readonly minimumIntervalMs = 1000,
-  ) {}
+    options: NominatimOptions = {},
+  ) {
+    this.minimumIntervalMs = options.minimumIntervalMs ?? 1000;
+    this.searchRadiusKm = options.searchRadiusKm ?? 20;
+    this.serviceLimits = options.serviceLimits;
+  }
+
+  private searchViewbox(near?: LocationPoint): string | null {
+    if (!this.serviceLimits) return null;
+    const serviceCenter = { lat: this.serviceLimits.centerLat, lng: this.serviceLimits.centerLng };
+    const focus = near && directDistanceKm(serviceCenter, near) <= this.serviceLimits.radiusKm
+      ? near
+      : serviceCenter;
+    const focusBounds = boundsAround(focus, this.searchRadiusKm);
+    const serviceBounds = boundsAround(serviceCenter, this.serviceLimits.radiusKm);
+    const bounds = intersectBounds(focusBounds, serviceBounds);
+    return [bounds.left, bounds.top, bounds.right, bounds.bottom]
+      .map(value => value.toFixed(6))
+      .join(',');
+  }
 
   private cached<T>(key: string): T | undefined {
     const entry = this.cache.get(key);
@@ -82,12 +131,17 @@ export class NominatimProvider implements GeocodingProvider {
     return this.remember(key, result, 24 * 60 * 60 * 1000);
   }
 
-  async search(query: string): Promise<GeocodedPlace[]> {
+  async search(query: string, near?: LocationPoint): Promise<GeocodedPlace[]> {
     const normalizedQuery = query.trim().toLocaleLowerCase('id');
-    const key = `search:${normalizedQuery}`;
+    const viewbox = this.searchViewbox(near);
+    const key = `search:${normalizedQuery}:${viewbox || 'indonesia'}`;
     const cached = this.cached<GeocodedPlace[]>(key);
     if (cached !== undefined) return cached;
     const params = new URLSearchParams({ format: 'jsonv2', q: query.trim(), addressdetails: '1', namedetails: '1', countrycodes: 'id', limit: '5' });
+    if (viewbox) {
+      params.set('viewbox', viewbox);
+      params.set('bounded', '1');
+    }
     const body = await this.request(`/search?${params}`);
     const results = Array.isArray(body) ? body.map(item => normalizePlace(item as NominatimPlace)).filter((place): place is GeocodedPlace => !!place) : [];
     return this.remember(key, results, 10 * 60 * 1000);

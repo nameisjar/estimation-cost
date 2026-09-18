@@ -6,7 +6,7 @@ import 'leaflet/dist/leaflet.css';
 import type { LocationPoint, Selection, Estimate } from '../types';
 
 const props = defineProps<{ pickup: LocationPoint | null; destination: LocationPoint | null; selection: Selection | null; estimate: Estimate | null; busy: boolean }>();
-const emit = defineEmits<{ choose: [point: LocationPoint, target: Selection]; preview: [point: LocationPoint, target: Selection]; 'preview-start': [target: Selection] }>();
+const emit = defineEmits<{ choose: [point: LocationPoint, target: Selection]; preview: [point: LocationPoint, target: Selection]; 'preview-start': [target: Selection]; located: [point: LocationPoint] }>();
 const container = ref<HTMLDivElement>();
 const notice = ref('');
 const locationPending = ref(false);
@@ -127,6 +127,7 @@ async function locate(target?: Selection, useAsPoint = false): Promise<boolean> 
       locationPending.value = false;
       if (!alive) { resolve(false); return; }
       const point = { lat: position.coords.latitude, lng: position.coords.longitude };
+      emit('located', point);
       showUserLocation(point, Math.max(position.coords.accuracy || 0, 10));
       map.setView([point.lat, point.lng], 17);
       const pointIsStillEmpty = target !== 'pickup' || !props.pickup;
@@ -239,7 +240,10 @@ onBeforeUnmount(() => {
     <div ref="container" class="leaflet-map" :class="{ 'map-selecting': selection && !busy }" />
     <div class="map-actions"><button type="button" :disabled="locationPending" aria-label="Tampilkan lokasi saya" title="Lokasi saya" @click="locate()"><LoaderCircle v-if="locationPending" :size="19" class="spinner" /><LocateFixed v-else :size="19" /></button><button type="button" aria-label="Lihat seluruh rute" title="Lihat seluruh rute" @click="fitMap"><Maximize2 :size="18" /></button></div>
     <div v-if="notice" class="map-notice" role="status">{{ notice }} <button aria-label="Tutup pemberitahuan peta" @click="notice = ''">×</button></div>
-    <div v-if="centerPicking" class="center-picker-pin" :class="[selection === 'pickup' ? 'pickup' : 'destination', { moving: mapMoving, settling: pinSettling }]" aria-hidden="true"><span class="center-picker-marker"><b>{{ selection === 'pickup' ? 'A' : 'B' }}</b></span><i /></div>
+    <div v-if="centerPicking" class="center-picker-target" :class="[selection === 'pickup' ? 'pickup' : 'destination', { moving: mapMoving, settling: pinSettling }]" aria-hidden="true">
+      <span class="center-picker-badge"><b>{{ selection === 'pickup' ? 'A' : 'B' }}</b></span>
+      <span class="precision-reticle"><b /></span>
+    </div>
     <div v-else-if="busy || estimate || (!pickup && !destination)" class="map-hint" aria-live="polite">
       <span>{{ busy ? 'Menghitung rute perjalanan…' : estimate ? 'Rute ditemukan. Marker dapat digeser.' : 'Pilih titik untuk mulai' }}</span>
     </div>

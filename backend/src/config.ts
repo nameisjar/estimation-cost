@@ -43,6 +43,7 @@ export const config = {
   geocodingBaseUrl: httpUrl('GEOCODING_BASE_URL', 'https://nominatim.openstreetmap.org'),
   geocodingTimeoutMs: numeric('GEOCODING_TIMEOUT_MS', 10000, true),
   geocodingUserAgent: (process.env.GEOCODING_USER_AGENT || 'AntarFixEstimator/1.0 (estimator.antarfix.id)').trim(),
+  geocodingSearchRadiusKm: numeric('GEOCODING_SEARCH_RADIUS_KM', 20),
   frontendUrl: httpUrl('FRONTEND_URL', 'http://localhost:5173'),
   whatsappNumber,
   serviceLimits,
@@ -53,5 +54,6 @@ if (
   config.port < 1 || config.port > 65535 ||
   config.osrmTimeoutMs < 1 || config.geocodingTimeoutMs < 1 ||
   !config.geocodingUserAgent || serviceLimits.radiusKm <= 0 ||
+  config.geocodingSearchRadiusKm <= 0 || config.geocodingSearchRadiusKm > serviceLimits.radiusKm ||
   serviceLimits.maxDistanceKm <= 0 || rateLimit.windowMs <= 0 || rateLimit.maxRequests <= 0
 ) throw new Error('Invalid port, timeout, service limit, rate limit, or geocoding user agent');

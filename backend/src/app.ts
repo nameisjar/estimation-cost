@@ -13,7 +13,13 @@ import { ServiceAreaService } from './services/service-area/service-area.service
 import { createRateLimiter } from './middleware/rate-limit.js';
 export function createApp(
   provider: RoutingProvider = new OsrmProvider(config.osrmBaseUrl, config.osrmTimeoutMs),
-  geocodingProvider: GeocodingProvider = new NominatimProvider(config.geocodingBaseUrl, config.geocodingTimeoutMs, config.geocodingUserAgent, config.frontendUrl),
+  geocodingProvider: GeocodingProvider = new NominatimProvider(
+    config.geocodingBaseUrl,
+    config.geocodingTimeoutMs,
+    config.geocodingUserAgent,
+    config.frontendUrl,
+    { searchRadiusKm: config.geocodingSearchRadiusKm, serviceLimits: config.serviceLimits },
+  ),
 ) {
   const app = express();
   app.disable('x-powered-by');

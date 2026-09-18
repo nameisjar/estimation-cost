@@ -22,7 +22,7 @@ test('API health, pricing authority, geometry, errors and CORS', async () => {
     { async route(a, b, geometry) { calls++; assert.deepEqual(a, pickup); assert.deepEqual(b, destination); return { distanceKm: 5.2, durationMinutes: 12, ...(geometry ? { geometry: { type: 'LineString' as const, coordinates: [[140.4018, -8.4932], [140.4072, -8.4965]] as [number, number][] } } : {}) }; } },
     {
       async reverse(point) { geocodingCalls++; assert.deepEqual(point, pickup); return { ...pickup, name: 'Warung Mie Ayam', address: 'Jalan Mandala, Merauke' }; },
-      async search(query) { geocodingCalls++; assert.equal(query, 'Warung Mie Ayam'); return [{ ...pickup, name: query, address: 'Jalan Mandala, Merauke' }]; },
+      async search(query, near) { geocodingCalls++; assert.equal(query, 'Warung Mie Ayam'); assert.deepEqual(near, pickup); return [{ ...pickup, name: query, address: 'Jalan Mandala, Merauke' }]; },
     },
   );
   const server = app.listen(0, '127.0.0.1'); await new Promise<void>(resolve => server.once('listening', resolve));
@@ -39,7 +39,7 @@ test('API health, pricing authority, geometry, errors and CORS', async () => {
     const forbidden = await fetch(`${base}/api/estimate`, { method: 'POST', headers: { Origin: 'https://untrusted.example' } }); assert.equal(forbidden.status, 403); assert.equal(forbidden.headers.get('access-control-allow-origin'), null);
     const publicConfig = await fetch(`${base}/api/config`); assert.equal((await publicConfig.json()).data.pricing.baseFare, config.pricing.baseFare);
     const reverse = await fetch(`${base}/api/geocode/reverse?lat=${pickup.lat}&lng=${pickup.lng}`); assert.equal((await reverse.json()).data.name, 'Warung Mie Ayam');
-    const search = await fetch(`${base}/api/geocode/search?q=${encodeURIComponent('Warung Mie Ayam')}`); assert.equal((await search.json()).data[0].address, 'Jalan Mandala, Merauke');
+    const search = await fetch(`${base}/api/geocode/search?q=${encodeURIComponent('Warung Mie Ayam')}&lat=${pickup.lat}&lng=${pickup.lng}`); assert.equal((await search.json()).data[0].address, 'Jalan Mandala, Merauke');
     assert.equal(geocodingCalls, 2);
     for (const path of ['/api/geocode/reverse?lat=91&lng=0', '/api/geocode/search?q=ab']) {
       const invalid = await fetch(`${base}${path}`); assert.equal(invalid.status, 400); assert.equal((await invalid.json()).success, false);
