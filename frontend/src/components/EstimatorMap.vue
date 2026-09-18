@@ -27,11 +27,12 @@ let settleTimer: ReturnType<typeof setTimeout> | undefined;
 let alive = true;
 
 function icon(letter: string) {
+  const markerClass = letter === 'A' ? 'marker-a' : 'marker-b';
   return L.divIcon({
     className: 'point-marker',
-    html: `<span class="marker-pin marker-${letter.toLowerCase()}">${letter}<i class="marker-grip" aria-hidden="true"><b></b><b></b><b></b></i></span>`,
-    iconSize: [38, 48],
-    iconAnchor: [19, 45],
+    html: `<svg class="saved-marker ${markerClass}" viewBox="0 0 44 52" aria-hidden="true"><path class="saved-marker-shape" d="M22 2.5C11.5 2.5 3 10.9 3 21.4 3 34.4 16.8 43.5 22 47c5.2-3.5 19-12.6 19-25.6C41 10.9 32.5 2.5 22 2.5Z"/><ellipse class="saved-marker-highlight" cx="15" cy="11" rx="5" ry="2.6"/><text x="22" y="26">${letter}</text></svg>`,
+    iconSize: [44, 52],
+    iconAnchor: [22, 47],
   });
 }
 
@@ -241,7 +242,17 @@ onBeforeUnmount(() => {
     <div class="map-actions"><button type="button" :disabled="locationPending" aria-label="Tampilkan lokasi saya" title="Lokasi saya" @click="locate()"><LoaderCircle v-if="locationPending" :size="19" class="spinner" /><LocateFixed v-else :size="19" /></button><button type="button" aria-label="Lihat seluruh rute" title="Lihat seluruh rute" @click="fitMap"><Maximize2 :size="18" /></button></div>
     <div v-if="notice" class="map-notice" role="status">{{ notice }} <button aria-label="Tutup pemberitahuan peta" @click="notice = ''">×</button></div>
     <div v-if="centerPicking" class="center-picker-target" :class="[selection === 'pickup' ? 'pickup' : 'destination', { moving: mapMoving, settling: pinSettling }]" aria-hidden="true">
-      <span class="center-picker-badge"><b>{{ selection === 'pickup' ? 'A' : 'B' }}</b><i class="center-picker-needle" /></span>
+      <svg class="center-picker-icon" viewBox="0 0 56 68">
+        <g class="center-picker-extension">
+          <path class="center-picker-extension-border" d="M28 52V66" />
+          <path class="center-picker-extension-fill" d="M28 52V66" />
+        </g>
+        <g class="center-picker-body">
+          <path class="center-picker-shape" d="M28 3C15.3 3 5 13.3 5 26c0 12.2 9.6 21.8 21.1 23l.7 15Q28 66 29.2 64l.7-15C41.4 47.8 51 38.2 51 26 51 13.3 40.7 3 28 3Z" />
+          <ellipse class="center-picker-highlight" cx="19" cy="13" rx="6" ry="3.2" />
+          <text x="28" y="32">{{ selection === 'pickup' ? 'A' : 'B' }}</text>
+        </g>
+      </svg>
     </div>
     <div v-else-if="busy || estimate || (!pickup && !destination)" class="map-hint" aria-live="polite">
       <span>{{ busy ? 'Menghitung rute perjalanan…' : estimate ? 'Rute ditemukan. Marker dapat digeser.' : 'Pilih titik untuk mulai' }}</span>
