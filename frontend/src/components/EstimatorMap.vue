@@ -241,7 +241,7 @@ onBeforeUnmount(() => {
     <div class="map-actions"><button type="button" :disabled="locationPending" aria-label="Tampilkan lokasi saya" title="Lokasi saya" @click="locate()"><LoaderCircle v-if="locationPending" :size="19" class="spinner" /><LocateFixed v-else :size="19" /></button><button type="button" aria-label="Lihat seluruh rute" title="Lihat seluruh rute" @click="fitMap"><Maximize2 :size="18" /></button></div>
     <div v-if="notice" class="map-notice" role="status">{{ notice }} <button aria-label="Tutup pemberitahuan peta" @click="notice = ''">×</button></div>
     <div v-if="centerPicking" class="center-picker-target" :class="[selection === 'pickup' ? 'pickup' : 'destination', { moving: mapMoving, settling: pinSettling }]" aria-hidden="true">
-      <span class="center-picker-badge"><b>{{ selection === 'pickup' ? 'A' : 'B' }}</b></span>
+      <span class="center-picker-badge"><b>{{ selection === 'pickup' ? 'A' : 'B' }}</b><i class="center-picker-needle" /></span>
     </div>
     <div v-else-if="busy || estimate || (!pickup && !destination)" class="map-hint" aria-live="polite">
       <span>{{ busy ? 'Menghitung rute perjalanan…' : estimate ? 'Rute ditemukan. Marker dapat digeser.' : 'Pilih titik untuk mulai' }}</span>
