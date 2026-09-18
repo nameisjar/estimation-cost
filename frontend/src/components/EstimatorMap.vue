@@ -5,7 +5,7 @@ import { LoaderCircle, LocateFixed, Maximize2 } from 'lucide-vue-next';
 import 'leaflet/dist/leaflet.css';
 import type { LocationPoint, Selection, Estimate } from '../types';
 
-const props = defineProps<{ pickup: LocationPoint | null; destination: LocationPoint | null; selection: Selection | null; estimate: Estimate | null; busy: boolean; resolvingPreview: boolean }>();
+const props = defineProps<{ pickup: LocationPoint | null; destination: LocationPoint | null; selection: Selection | null; estimate: Estimate | null; busy: boolean }>();
 const emit = defineEmits<{ choose: [point: LocationPoint, target: Selection]; preview: [point: LocationPoint, target: Selection]; 'preview-start': [target: Selection] }>();
 const container = ref<HTMLDivElement>();
 const notice = ref('');
@@ -240,16 +240,6 @@ onBeforeUnmount(() => {
     <div class="map-actions"><button type="button" :disabled="locationPending" aria-label="Tampilkan lokasi saya" title="Lokasi saya" @click="locate()"><LoaderCircle v-if="locationPending" :size="19" class="spinner" /><LocateFixed v-else :size="19" /></button><button type="button" aria-label="Lihat seluruh rute" title="Lihat seluruh rute" @click="fitMap"><Maximize2 :size="18" /></button></div>
     <div v-if="notice" class="map-notice" role="status">{{ notice }} <button aria-label="Tutup pemberitahuan peta" @click="notice = ''">×</button></div>
     <div v-if="centerPicking" class="center-picker-pin" :class="[selection === 'pickup' ? 'pickup' : 'destination', { moving: mapMoving, settling: pinSettling }]" aria-hidden="true"><span class="center-picker-marker"><b>{{ selection === 'pickup' ? 'A' : 'B' }}</b></span><i /></div>
-    <div v-if="centerPicking && (mapMoving || resolvingPreview)" class="center-selection-status" :class="[selection === 'destination' ? 'destination' : 'pickup', { moving: mapMoving, resolving: !mapMoving && resolvingPreview }]" role="status" aria-live="polite">
-      <span class="selection-status-icon">
-        <span v-if="mapMoving" class="moving-dots" aria-hidden="true"><i /><i /><i /></span>
-        <LoaderCircle v-else :size="17" class="spinner" />
-      </span>
-      <span>
-        <strong>{{ mapMoving ? 'Geser peta ke lokasi' : 'Mencari nama lokasi…' }}</strong>
-        <small>{{ mapMoving ? `Pin ${selection === 'pickup' ? 'A' : 'B'} tetap berada di tengah` : 'Tunggu sebentar' }}</small>
-      </span>
-    </div>
     <div v-else class="map-hint" :class="{ 'drag-hint': (pickup || destination) && !busy }" aria-live="polite">
       <span>{{ busy ? 'Menghitung rute perjalanan…' : selection === 'pickup' && pickup ? 'Geser marker A atau ketuk peta untuk memindahkan' : selection === 'pickup' ? 'Ketuk peta untuk memilih titik jemput' : estimate ? 'Rute ditemukan. Marker dapat digeser.' : pickup || destination ? 'Tekan dan geser marker untuk menyesuaikan lokasi' : 'Pilih titik untuk mulai' }}</span>
     </div>

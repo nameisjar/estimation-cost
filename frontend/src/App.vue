@@ -111,10 +111,6 @@ const actionLabel = computed(() =>
 const mobileActionHint = computed(() =>
   busy.value
     ? "Perjalananmu sedang dihitung"
-    : selection.value && resolvingCenterPreview.value
-    ? "Mencari nama lokasi..."
-    : selection.value && centerPreviewPoint.value
-    ? "Titik siap digunakan"
     : selection.value === "pickup"
     ? "Geser peta sampai pin A tepat"
     : selection.value === "destination"
@@ -777,7 +773,6 @@ onBeforeUnmount(clearCenterPreview);
             :selection="selection"
             :estimate="estimate"
             :busy="busy"
-            :resolving-preview="resolvingCenterPreview"
             @choose="choose"
             @preview="previewCenter"
             @preview-start="startCenterPreview"
