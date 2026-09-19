@@ -61,7 +61,7 @@ Perintah tersebut menjalankan backend dan frontend bersamaan dengan label log AP
 
 ## Dashboard admin
 
-Dashboard `/admin` digunakan untuk mencari, menambah, mengubah, mengaktifkan, dan menonaktifkan data tempat. Form menyediakan pemilih koordinat Leaflet; klik peta atau geser marker agar posisi tempat presisi. Perubahan tempat aktif langsung dipakai oleh pencarian dan label peta estimator.
+Dashboard `/admin` digunakan untuk mencari, menambah, mengubah, mengaktifkan, dan menonaktifkan data tempat. Form menyediakan pemilih koordinat Leaflet; klik peta atau geser marker agar posisi tempat presisi. Jika alamat kosong, dashboard dapat mencarinya dari koordinat dan menyimpan statusnya sebagai alamat otomatis sampai diperiksa admin. Perubahan tempat aktif langsung dipakai oleh pencarian dan label peta estimator.
 
 Aktifkan akun admin dengan mengisi tiga variabel berikut di `backend/.env`:
 
@@ -80,6 +80,15 @@ node -e "console.log(require('node:crypto').randomBytes(48).toString('hex'))"
 ```
 
 Salin keluaran perintah pertama ke `ADMIN_PASSWORD_HASH` dan keluaran kedua ke `ADMIN_SESSION_SECRET`, lalu restart `npm.cmd run dev`. Ketiga variabel akun harus diisi bersama. File `.env` tidak masuk Git.
+
+Data lama yang belum memiliki alamat tetap tampil dengan fallback wilayah seperti `Merauke, Papua Selatan`. Setelah migrasi dijalankan, alamat dapat diperkaya bertahap:
+
+```powershell
+npm.cmd --prefix backend run db:migrate
+npm.cmd --prefix backend run places:enrich-addresses -- --limit=25
+```
+
+Hasil otomatis disimpan di PostGIS agar tidak diminta ulang dan diberi label **Alamat otomatis** di dashboard. Untuk Nominatim publik, jalankan batch kecil; script mengirim permintaan secara berurutan dan membatasi satu batch maksimal 50 data. Gunakan provider atau instance Nominatim sendiri untuk pekerjaan rutin atau jumlah besar.
 
 Pada macOS/Linux, gunakan `npm` dan salin .env.example hanya pada setup pertama. Menjalankan `npm run dev` dari folder frontend/backend secara terpisah tetap tersedia bila diperlukan.
 

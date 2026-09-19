@@ -6,6 +6,9 @@ export type AdminPlace = {
   name: string;
   category: string;
   address: string;
+  displayAddress: string;
+  addressSource: 'missing' | 'survey' | 'automatic' | 'manual';
+  addressVerified: boolean;
   lat: number;
   lng: number;
   rating: number | null;
@@ -23,7 +26,7 @@ export type AdminPlace = {
   createdAt: string;
   updatedAt: string;
 };
-export type AdminPlaceInput = Omit<AdminPlace, 'id' | 'externalPlaceId' | 'verified' | 'minZoom' | 'labelPriority' | 'createdAt' | 'updatedAt'>;
+export type AdminPlaceInput = Omit<AdminPlace, 'id' | 'externalPlaceId' | 'displayAddress' | 'addressSource' | 'addressVerified' | 'verified' | 'minZoom' | 'labelPriority' | 'createdAt' | 'updatedAt'>;
 export type AdminPlaceList = { items: AdminPlace[]; total: number; page: number; limit: number };
 
 const baseUrl = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
@@ -56,8 +59,8 @@ export function adminLogin(username: string, password: string) {
 export function adminLogout() { return request<null>('/api/admin/logout', { method: 'POST' }); }
 export function getAdminSession() { return request<AdminSession>('/api/admin/session'); }
 export function getAdminStats() { return request<AdminStats>('/api/admin/stats'); }
-export function getAdminPlaces(query = '', status = 'all', page = 1, limit = 20) {
-  const params = new URLSearchParams({ q: query, status, page: String(page), limit: String(limit) });
+export function getAdminPlaces(query = '', status = 'all', addressStatus = 'all', page = 1, limit = 20) {
+  const params = new URLSearchParams({ q: query, status, addressStatus, page: String(page), limit: String(limit) });
   return request<AdminPlaceList>(`/api/admin/places?${params}`);
 }
 export function createAdminPlace(place: AdminPlaceInput) {
@@ -68,4 +71,12 @@ export function updateAdminPlace(id: string, place: AdminPlaceInput) {
 }
 export function setAdminPlaceActive(id: string, active: boolean) {
   return request<AdminPlace>(`/api/admin/places/${id}/status`, { method: 'PATCH', body: JSON.stringify({ active }) });
+}
+export function reverseAdminAddress(lat: number, lng: number) {
+  return request<{ address: string; name: string }>('/api/admin/address/reverse', {
+    method: 'POST', body: JSON.stringify({ lat, lng }),
+  });
+}
+export function enrichAdminPlaceAddress(id: string) {
+  return request<AdminPlace>(`/api/admin/places/${id}/enrich-address`, { method: 'POST' });
 }

@@ -1,10 +1,12 @@
 import type { Pool } from 'pg';
 import type { GeocodedPlace, LocationPoint, MapBounds, MapPlace, PlaceRepository } from '../../types/index.js';
+import { displayPlaceAddress, isMissingAddress } from './place-address.js';
 
 type PlaceRow = {
   id: string;
   name: string;
   address: string;
+  search_area: string | null;
   category: string;
   lat: number | string;
   lng: number | string;
@@ -40,7 +42,7 @@ function asPlace(row: PlaceRow): GeocodedPlace {
   return {
     id: row.id,
     name: row.name,
-    address: row.address,
+    address: displayPlaceAddress(row.address, row.search_area),
     type: row.category,
     lat: Number(row.lat),
     lng: Number(row.lng),
@@ -89,7 +91,7 @@ export class PostgisPlaceRepository implements PlaceRepository {
   async search(query: string, near?: LocationPoint, limit = 8): Promise<GeocodedPlace[]> {
     const focus = near || this.serviceCenter;
     const result = await this.pool.query<PlaceRow>(
-      `SELECT id, name, address, category, verified,
+      `SELECT id, name, address, search_area, category, verified,
               ST_Y(location::geometry) AS lat,
               ST_X(location::geometry) AS lng,
               ST_Distance(location, ST_SetSRID(ST_MakePoint($3, $2), 4326)::geography) AS distance_meters
@@ -119,7 +121,7 @@ export class PostgisPlaceRepository implements PlaceRepository {
 
   async nearest(point: LocationPoint, radiusMeters = 60): Promise<GeocodedPlace | null> {
     const result = await this.pool.query<PlaceRow>(
-      `SELECT id, name, address, category, verified,
+      `SELECT id, name, address, search_area, category, verified,
               ST_Y(location::geometry) AS lat,
               ST_X(location::geometry) AS lng,
               ST_Distance(location, ST_SetSRID(ST_MakePoint($2, $1), 4326)::geography) AS distance_meters
@@ -135,7 +137,7 @@ export class PostgisPlaceRepository implements PlaceRepository {
 
   async inBounds(bounds: MapBounds, zoom: number, limit = 100): Promise<MapPlace[]> {
     const result = await this.pool.query<PlaceRow>(
-      `SELECT id, name, address, category, verified, min_zoom, label_priority,
+      `SELECT id, name, address, search_area, category, verified, min_zoom, label_priority,
               popularity, rating, review_count,
               ST_Y(location::geometry) AS lat,
               ST_X(location::geometry) AS lng
@@ -177,10 +179,12 @@ export class PostgisPlaceRepository implements PlaceRepository {
       [place.externalPlaceId || null, place.name, place.lat, place.lng],
     );
     const placeRanking = rankSurveyPlace(place);
+    const storedAddress = place.address?.trim() || 'Alamat belum tersedia';
+    const importedAddressSource = isMissingAddress(storedAddress) ? 'missing' : 'survey';
     const values = [
       place.externalPlaceId?.trim() || null,
       place.name,
-      place.address?.trim() || 'Alamat belum tersedia',
+      storedAddress,
       place.category?.trim() || 'other',
       place.aliases || [],
       place.lat,
@@ -197,13 +201,30 @@ export class PostgisPlaceRepository implements PlaceRepository {
       placeRanking.popularity,
       placeRanking.minZoom,
       placeRanking.labelPriority,
+      importedAddressSource,
     ];
     if (existing.rows[0]) {
       await this.pool.query(
         `UPDATE places
             SET external_place_id = COALESCE($1, external_place_id),
                 name = $2,
-                address = $3,
+                address = CASE
+                  WHEN address_source = 'manual' OR ($20 = 'missing' AND address_source = 'automatic') THEN address
+                  ELSE $3
+                END,
+                address_source = CASE
+                  WHEN address_source = 'manual' OR ($20 = 'missing' AND address_source = 'automatic') THEN address_source
+                  ELSE $20
+                END,
+                address_verified = CASE
+                  WHEN address_source = 'manual' OR ($20 = 'missing' AND address_source = 'automatic') THEN address_verified
+                  ELSE FALSE
+                END,
+                address_updated_at = CASE
+                  WHEN address_source = 'manual' OR ($20 = 'missing' AND address_source = 'automatic') THEN address_updated_at
+                  WHEN $20 = 'missing' THEN NULL
+                  ELSE NOW()
+                END,
                 category = $4,
                 aliases = $5,
                 location = ST_SetSRID(ST_MakePoint($7, $6), 4326)::geography,
@@ -223,7 +244,7 @@ export class PostgisPlaceRepository implements PlaceRepository {
                 verified = TRUE,
                 active = TRUE,
                 updated_at = NOW()
-          WHERE id = $20`,
+          WHERE id = $21`,
         [...values, existing.rows[0].id],
       );
       return 'updated';
@@ -232,11 +253,13 @@ export class PostgisPlaceRepository implements PlaceRepository {
       `INSERT INTO places (
          external_place_id, name, address, category, aliases, location,
          rating, review_count, phone, website, opening_hours, google_maps_url,
-         search_keyword, search_area, collected_at, popularity, min_zoom, label_priority
+         search_keyword, search_area, collected_at, popularity, min_zoom, label_priority,
+         address_source, address_verified, address_updated_at
        )
        VALUES (
          $1, $2, $3, $4, $5, ST_SetSRID(ST_MakePoint($7, $6), 4326)::geography,
-         $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19
+         $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19,
+         $20, FALSE, CASE WHEN $20 = 'missing' THEN NULL ELSE NOW() END
        )`,
       values,
     );

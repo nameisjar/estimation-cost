@@ -2,12 +2,12 @@
 import { computed, onMounted, ref } from 'vue';
 import {
   ArrowLeft, ChevronLeft, ChevronRight, CircleAlert, Database, Edit3,
-  Eye, EyeOff, LogOut, MapPinned, Menu, Plus, Search, Store, X,
+  Eye, EyeOff, LoaderCircle, LogOut, MapPinned, Menu, Plus, Search, Store, WandSparkles, X,
 } from 'lucide-vue-next';
 import AdminPlaceForm from './components/admin/AdminPlaceForm.vue';
 import { getConfig } from './services/estimate.service';
 import {
-  AdminApiError, adminLogin, adminLogout, createAdminPlace, getAdminPlaces,
+  AdminApiError, adminLogin, adminLogout, createAdminPlace, enrichAdminPlaceAddress, getAdminPlaces,
   getAdminSession, getAdminStats, setAdminPlaceActive, updateAdminPlace,
   type AdminPlace, type AdminPlaceInput, type AdminSession, type AdminStats,
 } from './services/admin.service';
@@ -25,6 +25,7 @@ const dataBusy = ref(false);
 const query = ref('');
 const appliedQuery = ref('');
 const status = ref('all');
+const addressStatus = ref('all');
 const page = ref(1);
 const limit = 20;
 const total = ref(0);
@@ -32,6 +33,7 @@ const sidebarOpen = ref(false);
 const formOpen = ref(false);
 const editingPlace = ref<AdminPlace | null>(null);
 const saving = ref(false);
+const enrichingPlaceId = ref('');
 const formError = ref('');
 const toast = ref('');
 const serviceCenter = ref({ lat: -8.4932, lng: 140.4018 });
@@ -56,7 +58,7 @@ async function loadData() {
   dataBusy.value = true;
   try {
     const [placeData, statData] = await Promise.all([
-      getAdminPlaces(appliedQuery.value, status.value, page.value, limit),
+      getAdminPlaces(appliedQuery.value, status.value, addressStatus.value, page.value, limit),
       getAdminStats(),
     ]);
     places.value = placeData.items;
@@ -107,6 +109,10 @@ function filterStatus(value: string) {
   page.value = 1;
   void loadData();
 }
+function filterAddressStatus() {
+  page.value = 1;
+  void loadData();
+}
 function changePage(value: number) {
   page.value = Math.min(Math.max(value, 1), totalPages.value);
   void loadData();
@@ -135,8 +141,25 @@ async function togglePlace(place: AdminPlace) {
   } catch (error) { notify(message(error)); }
 }
 
+async function enrichAddress(place: AdminPlace) {
+  if (enrichingPlaceId.value) return;
+  enrichingPlaceId.value = place.id;
+  try {
+    await enrichAdminPlaceAddress(place.id);
+    notify(`Alamat ${place.name} berhasil ditemukan. Periksa hasilnya melalui menu edit.`);
+    await loadData();
+  } catch (error) { notify(message(error)); }
+  finally { enrichingPlaceId.value = ''; }
+}
+
 function categoryLabel(value: string) {
   return ({ medical: 'Kesehatan', education: 'Pendidikan', worship: 'Ibadah', food: 'Makanan', lodging: 'Penginapan', finance: 'Keuangan', automotive: 'Otomotif', government: 'Pemerintahan', transport: 'Transportasi', retail: 'Toko', service: 'Jasa', other: 'Lainnya' } as Record<string, string>)[value] || value;
+}
+function addressStatusLabel(place: AdminPlace) {
+  if (place.addressVerified || place.addressSource === 'manual') return 'Diperiksa admin';
+  if (place.addressSource === 'automatic') return 'Alamat otomatis';
+  if (place.addressSource === 'survey') return 'Data survei';
+  return 'Fallback wilayah';
 }
 </script>
 
@@ -184,7 +207,7 @@ function categoryLabel(value: string) {
         <section class="admin-table-card">
           <header class="admin-table-toolbar">
             <form class="admin-search" @submit.prevent="search"><Search :size="17" /><input v-model="query" placeholder="Cari nama, alamat, atau kata kunci" /><button>Cari</button></form>
-            <div class="admin-status-filter"><button v-for="item in [['all','Semua'],['active','Aktif'],['inactive','Nonaktif']]" :key="item[0]" :class="{ active: status === item[0] }" @click="filterStatus(item[0])">{{ item[1] }}</button></div>
+            <div class="admin-toolbar-filters"><label class="admin-address-filter"><span>Alamat</span><select v-model="addressStatus" @change="filterAddressStatus"><option value="all">Semua status</option><option value="missing">Belum lengkap</option><option value="automatic">Otomatis</option><option value="survey">Data survei</option><option value="verified">Diperiksa admin</option></select></label><div class="admin-status-filter"><button v-for="item in [['all','Semua'],['active','Aktif'],['inactive','Nonaktif']]" :key="item[0]" :class="{ active: status === item[0] }" @click="filterStatus(item[0])">{{ item[1] }}</button></div></div>
           </header>
 
           <div class="admin-table-wrap">
@@ -193,11 +216,11 @@ function categoryLabel(value: string) {
                 <tr v-if="dataBusy"><td colspan="5" class="admin-table-message">Memuat data tempat…</td></tr>
                 <tr v-else-if="!places.length"><td colspan="5" class="admin-table-message">Belum ada tempat yang sesuai dengan pencarian.</td></tr>
                 <tr v-for="place in places" v-else :key="place.id">
-                  <td data-label="Tempat"><div class="admin-place-cell"><span :class="`category-${place.category}`"><Store :size="15" /></span><div><strong>{{ place.name }}</strong><small>{{ place.address }}</small></div></div></td>
+                  <td data-label="Tempat"><div class="admin-place-cell"><span :class="`category-${place.category}`"><Store :size="15" /></span><div><strong>{{ place.name }}</strong><small>{{ place.displayAddress }}</small><em class="admin-address-status" :class="place.addressSource">{{ addressStatusLabel(place) }}</em></div></div></td>
                   <td data-label="Kategori"><span class="admin-category-pill">{{ categoryLabel(place.category) }}</span></td>
                   <td data-label="Koordinat"><span class="admin-coordinate">{{ place.lat.toFixed(5) }}, {{ place.lng.toFixed(5) }}</span><small class="admin-updated">Diperbarui {{ new Date(place.updatedAt).toLocaleDateString('id-ID') }}</small></td>
                   <td data-label="Status"><span class="admin-status" :class="{ inactive: !place.active }"><i></i>{{ place.active ? 'Aktif' : 'Nonaktif' }}</span></td>
-                  <td class="admin-row-actions"><button title="Edit tempat" @click="openEdit(place)"><Edit3 :size="16" /></button><button :title="place.active ? 'Nonaktifkan' : 'Aktifkan'" @click="togglePlace(place)"><EyeOff v-if="place.active" :size="16" /><Eye v-else :size="16" /></button></td>
+                  <td class="admin-row-actions"><button v-if="place.addressSource === 'missing'" title="Cari alamat otomatis" :disabled="!!enrichingPlaceId" @click="enrichAddress(place)"><LoaderCircle v-if="enrichingPlaceId === place.id" :size="16" class="spin" /><WandSparkles v-else :size="16" /></button><button title="Edit tempat" @click="openEdit(place)"><Edit3 :size="16" /></button><button :title="place.active ? 'Nonaktifkan' : 'Aktifkan'" @click="togglePlace(place)"><EyeOff v-if="place.active" :size="16" /><Eye v-else :size="16" /></button></td>
                 </tr>
               </tbody>
             </table>

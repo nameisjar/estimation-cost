@@ -69,6 +69,7 @@ export function createApp(
   app.use('/api', adminRoutes(
     createAdminPlaceRepository(),
     new AdminAuthService(config.admin),
+    geocodingProvider,
   ));
   app.use((_req, res) => { res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Endpoint tidak ditemukan.' } }); });
   const handleError: ErrorRequestHandler = (error, _req, res, _next) => {

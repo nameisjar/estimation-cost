@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { computed, reactive, watch } from 'vue';
-import { Check, MapPin, X } from 'lucide-vue-next';
+import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue';
+import { Check, LoaderCircle, MapPin, WandSparkles, X } from 'lucide-vue-next';
 import AdminPlaceMap from './AdminPlaceMap.vue';
-import type { AdminPlace, AdminPlaceInput } from '../../services/admin.service';
+import { reverseAdminAddress, type AdminPlace, type AdminPlaceInput } from '../../services/admin.service';
 
 const props = defineProps<{ place: AdminPlace | null; center: { lat: number; lng: number }; saving: boolean; serverError: string }>();
 const emit = defineEmits<{ close: []; save: [value: AdminPlaceInput] }>();
@@ -17,6 +17,10 @@ const form = reactive({
   rating: '' as number | '', reviewCount: '' as number | '', phone: '', website: '',
   openingHours: '', googleMapsUrl: '', searchKeyword: '', searchArea: 'Merauke', active: true,
 });
+const addressLookupBusy = ref(false);
+const addressLookupMessage = ref('');
+const addressLookupError = ref(false);
+let addressLookupTimer: ReturnType<typeof setTimeout> | undefined;
 const localError = computed(() => {
   if (form.name.trim().length < 2) return 'Nama tempat minimal 2 karakter.';
   if (!Number.isFinite(Number(form.lat)) || Math.abs(Number(form.lat)) > 90) return 'Latitude tidak valid.';
@@ -28,7 +32,7 @@ function fill(place: AdminPlace | null) {
   Object.assign(form, place ? {
     name: place.name,
     category: place.category,
-    address: place.address === 'Alamat belum tersedia' ? '' : place.address,
+    address: place.addressSource === 'missing' ? '' : place.address,
     lat: place.lat, lng: place.lng, rating: place.rating ?? '', reviewCount: place.reviewCount ?? '',
     phone: place.phone ?? '', website: place.website ?? '', openingHours: place.openingHours ?? '',
     googleMapsUrl: place.googleMapsUrl ?? '', searchKeyword: place.searchKeyword ?? '',
@@ -38,8 +42,33 @@ function fill(place: AdminPlace | null) {
     rating: '', reviewCount: '', phone: '', website: '', openingHours: '', googleMapsUrl: '',
     searchKeyword: '', searchArea: 'Merauke', active: true,
   });
+  addressLookupMessage.value = '';
+  addressLookupError.value = false;
 }
 watch(() => props.place, fill, { immediate: true });
+
+async function lookupAddress() {
+  if (addressLookupBusy.value || !Number.isFinite(Number(form.lat)) || !Number.isFinite(Number(form.lng))) return;
+  addressLookupBusy.value = true;
+  addressLookupMessage.value = 'Mencari alamat dari koordinat…';
+  addressLookupError.value = false;
+  try {
+    const result = await reverseAdminAddress(Number(form.lat), Number(form.lng));
+    form.address = result.address;
+    addressLookupMessage.value = 'Alamat ditemukan otomatis. Periksa sebelum menyimpan.';
+  } catch (error) {
+    addressLookupError.value = true;
+    addressLookupMessage.value = error instanceof Error ? error.message : 'Alamat belum berhasil ditemukan.';
+  } finally { addressLookupBusy.value = false; }
+}
+
+function changeMapPoint(point: { lat: number; lng: number }) {
+  form.lat = point.lat;
+  form.lng = point.lng;
+  if (addressLookupTimer) clearTimeout(addressLookupTimer);
+  if (!form.address.trim()) addressLookupTimer = setTimeout(() => { void lookupAddress(); }, 550);
+}
+onBeforeUnmount(() => { if (addressLookupTimer) clearTimeout(addressLookupTimer); });
 
 function submit() {
   if (localError.value || props.saving) return;
@@ -70,7 +99,7 @@ function submit() {
             <label class="wide">Nama tempat <b>*</b><input v-model="form.name" maxlength="160" placeholder="Contoh: Warung Mie Ayam Mandala" /></label>
             <label>Kategori <b>*</b><select v-model="form.category"><option v-for="item in categories" :key="item[0]" :value="item[0]">{{ item[1] }}</option></select></label>
             <label>Area pencarian<input v-model="form.searchArea" maxlength="160" placeholder="Merauke" /></label>
-            <label class="wide">Alamat<textarea v-model="form.address" rows="2" maxlength="500" placeholder="Nama jalan, kelurahan, distrik" /></label>
+            <label class="wide"><span class="admin-field-title">Alamat<button type="button" class="admin-address-lookup" :disabled="addressLookupBusy" @click="lookupAddress"><LoaderCircle v-if="addressLookupBusy" :size="13" class="spin" /><WandSparkles v-else :size="13" />{{ addressLookupBusy ? 'Mencari…' : 'Isi dari koordinat' }}</button></span><textarea v-model="form.address" rows="2" maxlength="500" placeholder="Nama jalan, kelurahan, distrik" /><small v-if="addressLookupMessage" class="admin-address-lookup-message" :class="{ error: addressLookupError }">{{ addressLookupMessage }}</small></label>
             <label>Kata kunci<input v-model="form.searchKeyword" maxlength="160" placeholder="bakso, klinik, sekolah" /></label>
             <label class="admin-switch-label"><span>Status tempat</span><button type="button" class="admin-switch" :class="{ on: form.active }" @click="form.active = !form.active"><i></i>{{ form.active ? 'Aktif' : 'Nonaktif' }}</button></label>
           </div>
@@ -78,7 +107,7 @@ function submit() {
 
         <section class="admin-form-section">
           <div class="admin-section-heading"><span>2</span><div><strong>Koordinat peta</strong><small>Klik peta atau geser marker untuk menentukan posisi.</small></div></div>
-          <AdminPlaceMap :lat="Number(form.lat)" :lng="Number(form.lng)" @change="point => { form.lat = point.lat; form.lng = point.lng }" />
+          <AdminPlaceMap :lat="Number(form.lat)" :lng="Number(form.lng)" @change="changeMapPoint" />
           <div class="admin-coordinate-grid">
             <label>Latitude <b>*</b><input v-model.number="form.lat" type="number" step="any" /></label>
             <label>Longitude <b>*</b><input v-model.number="form.lng" type="number" step="any" /></label>

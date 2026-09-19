@@ -80,6 +80,17 @@ placeId,name,category,address,latitude,longitude,rating,reviewCount,phone,websit
 
 `name` dan koordinat wajib tersedia. Jika kolom koordinat kosong, importer mencoba membacanya dari `googleMapsUrl`. Kolom lain boleh kosong, termasuk `placeId`. Baris tidak valid dilewati dengan peringatan dan dihitung pada ringkasan import. Data sumber lengkap tetap disimpan, sedangkan pencarian menggabungkan nama, kategori, alamat, kata kunci, dan area. `searchKeyword` menjadi fallback kategori untuk icon peta. Rating, jumlah ulasan, dan jenis tempat menentukan prioritas label serta tingkat zoom. Data survei menjadi hasil utama; Nominatim hanya dipakai saat database tidak menemukan kandidat. File contoh ada di `data/places.example.csv`.
 
+Jika alamat CSV kosong, nilai asli tetap ditandai `missing`, tetapi API publik menampilkan `searchArea` dalam format yang mudah dibaca agar pengguna tidak melihat placeholder. Jalankan migrasi dan pengayaan alamat secara bertahap:
+
+```bash
+npm run db:migrate
+npm run places:enrich-addresses -- --limit=25
+# Satu tempat tertentu:
+npm run places:enrich-addresses -- --id=UUID-TEMPAT --limit=1
+```
+
+Alamat hasil reverse geocoding disimpan dengan status `automatic` dan belum dianggap diperiksa. Saat admin membuka lalu menyimpan alamat tersebut, status menjadi `manual` dan terverifikasi. Import ulang CSV tanpa alamat tidak menimpa alamat otomatis atau manual yang sudah tersedia. Nominatim publik dibatasi script menjadi maksimal 50 data per batch dengan interval lebih dari satu detik; provider atau instance sendiri diperlukan untuk proses rutin atau jumlah besar.
+
 ## API
 
 ### GET /health

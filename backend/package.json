@@ -12,10 +12,11 @@
     "start": "node dist/server.js",
     "typecheck": "tsc --noEmit && tsc -p tsconfig.tests.json",
     "lint": "eslint .",
-    "test": "tsx --import ./scripts/test-env.mjs --test src/scripts/place-import-utils.test.ts src/services/admin/admin-auth.test.ts src/services/pricing/pricing.test.ts src/services/routing/osrm.test.ts src/services/geocoding/nominatim.test.ts src/services/geocoding/survey-first.test.ts src/services/service-area/service-area.test.ts src/middleware/rate-limit.test.ts src/app.test.ts",
+    "test": "tsx --import ./scripts/test-env.mjs --test src/scripts/place-import-utils.test.ts src/services/admin/admin-auth.test.ts src/services/places/place-address.test.ts src/services/pricing/pricing.test.ts src/services/routing/osrm.test.ts src/services/geocoding/nominatim.test.ts src/services/geocoding/survey-first.test.ts src/services/service-area/service-area.test.ts src/middleware/rate-limit.test.ts src/app.test.ts",
     "test:smoke": "node scripts/smoke.mjs",
     "db:migrate": "node scripts/migrate-db.mjs",
     "places:import": "tsx src/scripts/import-places.ts",
+    "places:enrich-addresses": "tsx src/scripts/enrich-place-addresses.ts",
     "admin:hash-password": "node scripts/hash-admin-password.mjs"
   },
   "dependencies": {

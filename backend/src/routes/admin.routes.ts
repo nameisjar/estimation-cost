@@ -5,6 +5,7 @@ import { validatePoint } from '../validation.js';
 import { directDistanceKm } from '../services/service-area/service-area.service.js';
 import { AdminAuthService } from '../services/admin/admin-auth.service.js';
 import { AdminPlaceRepository, type AdminPlaceInput } from '../services/places/admin-place.repository.js';
+import type { GeocodingProvider } from '../types/index.js';
 
 const categories = new Set(['medical', 'education', 'worship', 'food', 'lodging', 'finance', 'automotive', 'government', 'transport', 'retail', 'service', 'other']);
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -73,7 +74,11 @@ function positiveInteger(value: unknown, fallback: number, maximum: number): num
   return Number.isInteger(parsed) && parsed >= 1 ? Math.min(parsed, maximum) : fallback;
 }
 
-export function adminRoutes(repository: AdminPlaceRepository | undefined, auth: AdminAuthService) {
+export function adminRoutes(
+  repository: AdminPlaceRepository | undefined,
+  auth: AdminAuthService,
+  addressGeocoder: GeocodingProvider,
+) {
   const router = Router();
   const production = process.env.NODE_ENV === 'production';
 
@@ -110,6 +115,19 @@ export function adminRoutes(repository: AdminPlaceRepository | undefined, auth: 
     res.json({ success: true, data: { username: config.admin.username } });
   });
 
+  router.post('/admin/address/reverse', available, authenticated, csrf, async (req, res, next) => {
+    try {
+      const point = validatePoint({ lat: req.body?.lat, lng: req.body?.lng }, 'lokasi tempat');
+      const center = { lat: config.serviceLimits.centerLat, lng: config.serviceLimits.centerLng };
+      if (directDistanceKm(center, point) > config.serviceLimits.radiusKm) {
+        throw new ApiError(422, 'OUTSIDE_SERVICE_AREA', `Tempat berada di luar radius layanan ${config.serviceLimits.radiusKm} km.`);
+      }
+      const place = await addressGeocoder.reverse(point);
+      if (!place?.address) throw new ApiError(404, 'ADDRESS_NOT_FOUND', 'Alamat belum ditemukan untuk koordinat ini.');
+      res.json({ success: true, data: { address: place.address, name: place.name } });
+    } catch (error) { next(error); }
+  });
+
   router.use('/admin/places', available, authenticated);
   router.use('/admin/stats', available, authenticated);
 
@@ -121,9 +139,12 @@ export function adminRoutes(repository: AdminPlaceRepository | undefined, auth: 
     try {
       const query = typeof req.query.q === 'string' ? req.query.q.trim().slice(0, 120) : '';
       const status = ['active', 'inactive'].includes(String(req.query.status)) ? String(req.query.status) as 'active' | 'inactive' : 'all';
+      const addressStatus = ['missing', 'automatic', 'verified', 'survey'].includes(String(req.query.addressStatus))
+        ? String(req.query.addressStatus) as 'missing' | 'automatic' | 'verified' | 'survey'
+        : 'all';
       const page = positiveInteger(req.query.page, 1, 100_000);
       const limit = positiveInteger(req.query.limit, 20, 100);
-      res.json({ success: true, data: await repository!.list(query, status, page, limit) });
+      res.json({ success: true, data: await repository!.list(query, status, addressStatus, page, limit) });
     } catch (error) { next(error); }
   });
 
@@ -145,6 +166,18 @@ export function adminRoutes(repository: AdminPlaceRepository | undefined, auth: 
       if (!uuidPattern.test(id)) throw new ApiError(400, 'INVALID_PLACE_ID', 'ID tempat tidak valid.');
       if (typeof req.body?.active !== 'boolean') throw new ApiError(400, 'INVALID_PLACE_STATUS', 'Status tempat tidak valid.');
       res.json({ success: true, data: await repository!.setActive(id, req.body.active) });
+    } catch (error) { next(error); }
+  });
+
+  router.post('/admin/places/:id/enrich-address', csrf, async (req, res, next) => {
+    try {
+      const id = String(req.params.id);
+      if (!uuidPattern.test(id)) throw new ApiError(400, 'INVALID_PLACE_ID', 'ID tempat tidak valid.');
+      const place = await repository!.find(id);
+      if (!place) throw new ApiError(404, 'PLACE_NOT_FOUND', 'Tempat tidak ditemukan.');
+      const result = await addressGeocoder.reverse({ lat: place.lat, lng: place.lng });
+      if (!result?.address) throw new ApiError(404, 'ADDRESS_NOT_FOUND', 'Alamat belum ditemukan untuk koordinat tempat ini.');
+      res.json({ success: true, data: await repository!.saveAutomaticAddress(id, result.address) });
     } catch (error) { next(error); }
   });
 
