@@ -92,7 +92,7 @@ npm run db:migrate
 npm run places:import -- ./data/places.csv
 ```
 
-Contoh format tersedia di `backend/data/places.example.csv`. Importer memeriksa header, koordinat, rating, jumlah ulasan, tanggal, dan radius area layanan. Proses dapat dijalankan ulang: data dengan `placeId` yang sama akan diperbarui, bukan digandakan.
+Contoh format tersedia di `backend/data/places.example.csv`. Importer memeriksa header, koordinat, rating, jumlah ulasan, tanggal, dan radius area layanan. Baris dengan nilai tidak valid dilewati dengan peringatan agar baris valid tetap diproses. Proses dapat dijalankan ulang: data dengan `placeId` yang sama akan diperbarui, bukan digandakan.
 
 ## API dan pricing
 

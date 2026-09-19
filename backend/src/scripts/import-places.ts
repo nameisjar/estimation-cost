@@ -82,6 +82,7 @@ async function run() {
   );
   let inserted = 0;
   let updated = 0;
+  let skipped = 0;
   let rowNumber = 1;
   const parser = createReadStream(path.resolve(input)).pipe(parse({ columns: true, bom: true, skip_empty_lines: true, trim: true }));
 
@@ -91,11 +92,19 @@ async function run() {
       const missing = expectedColumns.filter(column => !(column in record));
       if (missing.length) throw new Error(`Kolom CSV belum lengkap: ${missing.join(', ')}`);
     }
-    const result = await repository.upsertSurveyPlace(toPlace(record, rowNumber));
+    let place: SurveyPlaceInput;
+    try {
+      place = toPlace(record, rowNumber);
+    } catch (error) {
+      skipped++;
+      console.warn(`Lewati ${error instanceof Error ? error.message : `baris ${rowNumber}: data tidak valid.`}`);
+      continue;
+    }
+    const result = await repository.upsertSurveyPlace(place);
     if (result === 'inserted') inserted++;
     else updated++;
   }
-  console.log(`Import selesai: ${inserted} data baru, ${updated} data diperbarui.`);
+  console.log(`Import selesai: ${inserted} data baru, ${updated} data diperbarui, ${skipped} data dilewati.`);
 }
 
 run()
