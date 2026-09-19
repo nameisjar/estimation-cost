@@ -164,8 +164,8 @@ export class PostgisPlaceRepository implements PlaceRepository {
   }
 
   async upsertSurveyPlace(place: SurveyPlaceInput): Promise<'inserted' | 'updated'> {
-    const existing = await this.pool.query<{ id: string }>(
-      `SELECT id
+    const existing = await this.pool.query<{ id: string; rating: number | string | null; review_count: number | string | null }>(
+      `SELECT id, rating, review_count
          FROM places
         WHERE ($1::text IS NOT NULL AND external_place_id = $1)
            OR (
@@ -178,7 +178,12 @@ export class PostgisPlaceRepository implements PlaceRepository {
         LIMIT 1`,
       [place.externalPlaceId || null, place.name, place.lat, place.lng],
     );
-    const placeRanking = rankSurveyPlace(place);
+    const existingRow = existing.rows[0];
+    const placeRanking = rankSurveyPlace({
+      ...place,
+      rating: place.rating ?? (existingRow?.rating == null ? undefined : Number(existingRow.rating)),
+      reviewCount: place.reviewCount ?? (existingRow?.review_count == null ? undefined : Number(existingRow.review_count)),
+    });
     const storedAddress = place.address?.trim() || 'Alamat belum tersedia';
     const importedAddressSource = isMissingAddress(storedAddress) ? 'missing' : 'survey';
     const values = [
@@ -203,49 +208,48 @@ export class PostgisPlaceRepository implements PlaceRepository {
       placeRanking.labelPriority,
       importedAddressSource,
     ];
-    if (existing.rows[0]) {
+    if (existingRow) {
       await this.pool.query(
         `UPDATE places
-            SET external_place_id = COALESCE($1, external_place_id),
+            SET external_place_id = COALESCE(external_place_id, $1),
                 name = $2,
                 address = CASE
-                  WHEN address_source = 'manual' OR ($20 = 'missing' AND address_source = 'automatic') THEN address
+                  WHEN address_source = 'manual' OR ($20 = 'missing' AND address_source <> 'missing') THEN address
                   ELSE $3
                 END,
                 address_source = CASE
-                  WHEN address_source = 'manual' OR ($20 = 'missing' AND address_source = 'automatic') THEN address_source
+                  WHEN address_source = 'manual' OR ($20 = 'missing' AND address_source <> 'missing') THEN address_source
                   ELSE $20
                 END,
                 address_verified = CASE
-                  WHEN address_source = 'manual' OR ($20 = 'missing' AND address_source = 'automatic') THEN address_verified
+                  WHEN address_source = 'manual' OR ($20 = 'missing' AND address_source <> 'missing') THEN address_verified
                   ELSE FALSE
                 END,
                 address_updated_at = CASE
-                  WHEN address_source = 'manual' OR ($20 = 'missing' AND address_source = 'automatic') THEN address_updated_at
+                  WHEN address_source = 'manual' OR ($20 = 'missing' AND address_source <> 'missing') THEN address_updated_at
                   WHEN $20 = 'missing' THEN NULL
                   ELSE NOW()
                 END,
                 category = $4,
-                aliases = $5,
+                aliases = CASE WHEN cardinality($5::text[]) > 0 THEN $5 ELSE aliases END,
                 location = ST_SetSRID(ST_MakePoint($7, $6), 4326)::geography,
-                rating = $8,
-                review_count = $9,
-                phone = $10,
-                website = $11,
-                opening_hours = $12,
-                google_maps_url = $13,
-                search_keyword = $14,
-                search_area = $15,
-                collected_at = $16,
+                rating = COALESCE($8, rating),
+                review_count = COALESCE($9, review_count),
+                phone = COALESCE($10, phone),
+                website = COALESCE($11, website),
+                opening_hours = COALESCE($12, opening_hours),
+                google_maps_url = COALESCE($13, google_maps_url),
+                search_keyword = COALESCE($14, search_keyword),
+                search_area = COALESCE($15, search_area),
+                collected_at = COALESCE($16, collected_at),
                 popularity = $17,
                 min_zoom = $18,
                 label_priority = $19,
-                source = 'antarfix_survey',
+                source = CASE WHEN source = 'admin' THEN source ELSE 'antarfix_survey' END,
                 verified = TRUE,
-                active = TRUE,
                 updated_at = NOW()
           WHERE id = $21`,
-        [...values, existing.rows[0].id],
+        [...values, existingRow.id],
       );
       return 'updated';
     }

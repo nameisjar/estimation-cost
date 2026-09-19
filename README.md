@@ -90,6 +90,8 @@ npm.cmd --prefix backend run places:enrich-addresses -- --limit=25
 
 Hasil otomatis disimpan di PostGIS agar tidak diminta ulang dan diberi label **Alamat otomatis** di dashboard. Untuk Nominatim publik, jalankan batch kecil; script mengirim permintaan secara berurutan dan membatasi satu batch maksimal 50 data. Gunakan provider atau instance Nominatim sendiri untuk pekerjaan rutin atau jumlah besar.
 
+Import CSV bersifat non-destruktif untuk data yang sudah ada. Kolom kosong tidak menghapus alamat, telepon, website, rating, jumlah ulasan, jam operasional, kata kunci, area, atau tanggal pengumpulan yang sudah tersimpan. Alamat yang diperiksa admin serta status aktif/nonaktif dari dashboard tetap dipertahankan.
+
 Pada macOS/Linux, gunakan `npm` dan salin .env.example hanya pada setup pertama. Menjalankan `npm run dev` dari folder frontend/backend secara terpisah tetap tersedia bila diperlukan.
 
 ## Environment

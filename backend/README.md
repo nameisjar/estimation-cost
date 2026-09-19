@@ -89,7 +89,7 @@ npm run places:enrich-addresses -- --limit=25
 npm run places:enrich-addresses -- --id=UUID-TEMPAT --limit=1
 ```
 
-Alamat hasil reverse geocoding disimpan dengan status `automatic` dan belum dianggap diperiksa. Saat admin membuka lalu menyimpan alamat tersebut, status menjadi `manual` dan terverifikasi. Import ulang CSV tanpa alamat tidak menimpa alamat otomatis atau manual yang sudah tersedia. Nominatim publik dibatasi script menjadi maksimal 50 data per batch dengan interval lebih dari satu detik; provider atau instance sendiri diperlukan untuk proses rutin atau jumlah besar.
+Alamat hasil reverse geocoding disimpan dengan status `automatic` dan belum dianggap diperiksa. Saat admin membuka lalu menyimpan alamat tersebut, status menjadi `manual` dan terverifikasi. Import ulang bersifat non-destruktif: nilai CSV kosong tidak menimpa alamat survei, alamat otomatis, alamat manual, alias, telepon, website, rating, jumlah ulasan, jam operasional, URL Google Maps, kata kunci, area pencarian, atau tanggal pengumpulan yang sudah tersedia. Status aktif/nonaktif dari dashboard dan `placeId` lama juga dipertahankan. Nilai CSV yang terisi tetap dapat melengkapi data; alamat manual hanya dapat diubah melalui dashboard. Nominatim publik dibatasi script menjadi maksimal 50 data per batch dengan interval lebih dari satu detik; provider atau instance sendiri diperlukan untuk proses rutin atau jumlah besar.
 
 ## API
 
