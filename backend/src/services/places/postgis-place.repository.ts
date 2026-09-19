@@ -12,6 +12,9 @@ type PlaceRow = {
   distance_meters?: number | string | null;
   min_zoom?: number;
   label_priority?: number;
+  popularity?: number | string;
+  rating?: number | string | null;
+  review_count?: number | string | null;
 };
 
 export type SurveyPlaceInput = {
@@ -44,6 +47,35 @@ function asPlace(row: PlaceRow): GeocodedPlace {
     source: 'antarfix',
     verified: row.verified,
     ...(row.distance_meters == null ? {} : { distanceMeters: Math.round(Number(row.distance_meters)) }),
+  };
+}
+
+const categoryPriority: Record<string, number> = {
+  medical: 340,
+  transport: 300,
+  government: 270,
+  education: 250,
+  finance: 220,
+  lodging: 190,
+  worship: 170,
+  food: 150,
+  retail: 125,
+  automotive: 105,
+  service: 85,
+  other: 60,
+};
+
+function ranking(place: SurveyPlaceInput) {
+  const reviews = Math.max(place.reviewCount ?? 0, 0);
+  const rating = Math.max(place.rating ?? 0, 0);
+  const categoryScore = categoryPriority[place.category || 'other'] ?? categoryPriority.other!;
+  const reviewScore = Math.min(Math.round(Math.log2(reviews + 1) * 16), 160);
+  const ratingScore = Math.round(rating * 6);
+  const labelPriority = categoryScore + reviewScore + ratingScore;
+  return {
+    popularity: Math.min(reviews, 100_000) + Math.round(rating * 20),
+    labelPriority,
+    minZoom: labelPriority >= 390 ? 16 : labelPriority >= 260 ? 17 : 18,
   };
 }
 
@@ -104,6 +136,7 @@ export class PostgisPlaceRepository implements PlaceRepository {
   async inBounds(bounds: MapBounds, zoom: number, limit = 100): Promise<MapPlace[]> {
     const result = await this.pool.query<PlaceRow>(
       `SELECT id, name, address, category, verified, min_zoom, label_priority,
+              popularity, rating, review_count,
               ST_Y(location::geometry) AS lat,
               ST_X(location::geometry) AS lng
          FROM places
@@ -122,6 +155,9 @@ export class PostgisPlaceRepository implements PlaceRepository {
       id: row.id,
       minZoom: row.min_zoom ?? 16,
       labelPriority: row.label_priority ?? 0,
+      popularity: Number(row.popularity ?? 0),
+      ...(row.rating == null ? {} : { rating: Number(row.rating) }),
+      ...(row.review_count == null ? {} : { reviewCount: Number(row.review_count) }),
     }));
   }
 
@@ -140,6 +176,7 @@ export class PostgisPlaceRepository implements PlaceRepository {
         LIMIT 1`,
       [place.externalPlaceId || null, place.name, place.lat, place.lng],
     );
+    const placeRanking = ranking(place);
     const values = [
       place.externalPlaceId?.trim() || null,
       place.name,
@@ -157,6 +194,9 @@ export class PostgisPlaceRepository implements PlaceRepository {
       place.searchKeyword?.trim() || null,
       place.searchArea?.trim() || null,
       place.collectedAt || null,
+      placeRanking.popularity,
+      placeRanking.minZoom,
+      placeRanking.labelPriority,
     ];
     if (existing.rows[0]) {
       await this.pool.query(
@@ -176,11 +216,14 @@ export class PostgisPlaceRepository implements PlaceRepository {
                 search_keyword = $14,
                 search_area = $15,
                 collected_at = $16,
+                popularity = $17,
+                min_zoom = $18,
+                label_priority = $19,
                 source = 'antarfix_survey',
                 verified = TRUE,
                 active = TRUE,
                 updated_at = NOW()
-          WHERE id = $17`,
+          WHERE id = $20`,
         [...values, existing.rows[0].id],
       );
       return 'updated';
@@ -189,11 +232,11 @@ export class PostgisPlaceRepository implements PlaceRepository {
       `INSERT INTO places (
          external_place_id, name, address, category, aliases, location,
          rating, review_count, phone, website, opening_hours, google_maps_url,
-         search_keyword, search_area, collected_at
+         search_keyword, search_area, collected_at, popularity, min_zoom, label_priority
        )
        VALUES (
          $1, $2, $3, $4, $5, ST_SetSRID(ST_MakePoint($7, $6), 4326)::geography,
-         $8, $9, $10, $11, $12, $13, $14, $15, $16
+         $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19
        )`,
       values,
     );

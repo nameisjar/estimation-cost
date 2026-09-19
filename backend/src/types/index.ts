@@ -10,7 +10,14 @@ export type GeocodedPlace = {
   verified?: boolean;
   distanceMeters?: number;
 };
-export type MapPlace = GeocodedPlace & { id: string; minZoom: number; labelPriority: number };
+export type MapPlace = GeocodedPlace & {
+  id: string;
+  minZoom: number;
+  labelPriority: number;
+  popularity: number;
+  rating?: number;
+  reviewCount?: number;
+};
 export type MapBounds = { north: number; south: number; east: number; west: number };
 export type RouteGeometry = { type: 'LineString'; coordinates: [number, number][] };
 export type RouteResult = { distanceKm: number; durationMinutes: number; geometry?: RouteGeometry };

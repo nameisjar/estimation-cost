@@ -58,7 +58,7 @@ test('map places endpoint returns surveyed places and validates bounds', async (
       async inBounds(bounds, zoom) {
         assert.deepEqual(bounds, { north: -8.4, south: -8.6, east: 140.5, west: 140.3 });
         receivedZoom = zoom;
-        return [{ id: 'survey-1', name: 'Warung Survei', address: 'Merauke', lat: -8.49, lng: 140.4, minZoom: 16, labelPriority: 0, source: 'antarfix' }];
+        return [{ id: 'survey-1', name: 'Warung Survei', address: 'Merauke', lat: -8.49, lng: 140.4, minZoom: 16, labelPriority: 0, popularity: 0, source: 'antarfix' }];
       },
     },
   );

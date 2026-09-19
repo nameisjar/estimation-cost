@@ -73,7 +73,7 @@ Aktifkan ekstensi dan tabel dengan `npm run db:migrate`, lalu impor data menggun
 placeId,name,category,address,latitude,longitude,rating,reviewCount,phone,website,openingHours,googleMapsUrl,searchKeyword,searchArea,collectedAt
 ```
 
-`name`, `latitude`, dan `longitude` wajib berisi nilai. Kolom lain boleh kosong, termasuk `placeId`. Baris tidak valid dilewati dengan peringatan dan dihitung pada ringkasan import. Data sumber lengkap tetap disimpan, sedangkan pencarian menggabungkan nama, kategori, alamat, kata kunci, dan area. Data survei menjadi hasil utama; Nominatim hanya dipakai saat database tidak menemukan kandidat. File contoh ada di `data/places.example.csv`.
+`name` dan koordinat wajib tersedia. Jika kolom koordinat kosong, importer mencoba membacanya dari `googleMapsUrl`. Kolom lain boleh kosong, termasuk `placeId`. Baris tidak valid dilewati dengan peringatan dan dihitung pada ringkasan import. Data sumber lengkap tetap disimpan, sedangkan pencarian menggabungkan nama, kategori, alamat, kata kunci, dan area. `searchKeyword` menjadi fallback kategori untuk icon peta. Rating, jumlah ulasan, dan jenis tempat menentukan prioritas label serta tingkat zoom. Data survei menjadi hasil utama; Nominatim hanya dipakai saat database tidak menemukan kandidat. File contoh ada di `data/places.example.csv`.
 
 ## API
 

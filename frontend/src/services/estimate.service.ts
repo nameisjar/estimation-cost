@@ -29,14 +29,14 @@ export function searchPlaces(query: string, near?: LocationPoint | null) {
   }
   return request<GeocodedPlace[]>(`/api/geocode/search?${params}`);
 }
-export function getMapPlaces(bounds: { north: number; south: number; east: number; west: number }, zoom: number) {
+export function getMapPlaces(bounds: { north: number; south: number; east: number; west: number }, zoom: number, limit = 100) {
   const params = new URLSearchParams({
     north: String(bounds.north),
     south: String(bounds.south),
     east: String(bounds.east),
     west: String(bounds.west),
     zoom: String(Math.round(zoom)),
-    limit: '100',
+    limit: String(Math.min(Math.max(limit, 1), 200)),
   });
   return request<MapPlace[]>(`/api/places/map?${params}`);
 }

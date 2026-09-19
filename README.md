@@ -72,7 +72,7 @@ File `.env` disimpan lokal di komputer/server dan diabaikan Git. Commit `.env.ex
 
 ## Data tempat hasil survei dengan PostGIS
 
-Database bersifat opsional. Tanpa `DATABASE_URL`, estimasi tetap berjalan dan pencarian memakai Nominatim/OpenStreetMap. Jika PostgreSQL + PostGIS dikonfigurasi, backend memprioritaskan data survei untuk pencarian dan reverse geocoding, lalu memakai Nominatim jika tidak ada hasil. Endpoint POI aktif mulai zoom 14; data baru memakai `min_zoom` 16 secara default agar label tidak terlalu padat.
+Database bersifat opsional. Tanpa `DATABASE_URL`, estimasi tetap berjalan dan pencarian memakai Nominatim/OpenStreetMap. Jika PostgreSQL + PostGIS dikonfigurasi, backend memprioritaskan data survei untuk pencarian dan reverse geocoding, lalu memakai Nominatim jika tidak ada hasil. POI disembunyikan pada zoom 14–15. Mulai zoom 16, aplikasi memilih tempat berdasarkan kategori, rating, jumlah ulasan, dan grid posisi agar icon serta label tidak bertumpuk.
 
 Header CSV yang didukung sama dengan data Anda:
 
@@ -92,7 +92,7 @@ npm run db:migrate
 npm run places:import -- ./data/places.csv
 ```
 
-Contoh format tersedia di `backend/data/places.example.csv`. Importer memeriksa header, koordinat, rating, jumlah ulasan, tanggal, dan radius area layanan. Baris dengan nilai tidak valid dilewati dengan peringatan agar baris valid tetap diproses. Proses dapat dijalankan ulang: data dengan `placeId` yang sama akan diperbarui, bukan digandakan.
+Contoh format tersedia di `backend/data/places.example.csv`. Importer memeriksa header, koordinat, rating, jumlah ulasan, tanggal, dan radius area layanan. Jika koordinat kosong tetapi `googleMapsUrl` berisi koordinat, importer memulihkannya dari URL. `searchKeyword` dipakai untuk menentukan kategori icon ketika `category` kosong. Baris yang tetap tidak valid dilewati dengan peringatan agar baris valid tetap diproses. Proses dapat dijalankan ulang: data dengan `placeId` yang sama akan diperbarui, bukan digandakan.
 
 ## API dan pricing
 

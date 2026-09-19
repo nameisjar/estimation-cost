@@ -5,6 +5,7 @@ import { parse } from 'csv-parse';
 import { databasePool } from '../database.js';
 import { config } from '../config.js';
 import { PostgisPlaceRepository, type SurveyPlaceInput } from '../services/places/postgis-place.repository.js';
+import { normalizePlaceCategory, optionalNumber, requiredPlaceCoordinates } from './place-import-utils.js';
 
 type CsvRow = Record<string, string>;
 const expectedColumns = [
@@ -12,13 +13,6 @@ const expectedColumns = [
   'reviewCount', 'phone', 'website', 'openingHours', 'googleMapsUrl',
   'searchKeyword', 'searchArea', 'collectedAt',
 ];
-
-function optionalNumber(value: string, field: string, row: number): number | undefined {
-  if (!value?.trim()) return undefined;
-  const parsed = Number(value.replace(',', '.'));
-  if (!Number.isFinite(parsed)) throw new Error(`Baris ${row}: ${field} bukan angka valid.`);
-  return parsed;
-}
 
 function distanceKm(a: { lat: number; lng: number }, b: { lat: number; lng: number }): number {
   const radians = (degrees: number) => degrees * Math.PI / 180;
@@ -31,11 +25,8 @@ function distanceKm(a: { lat: number; lng: number }, b: { lat: number; lng: numb
 
 function toPlace(record: CsvRow, row: number): SurveyPlaceInput {
   const name = record.name?.trim();
-  const lat = optionalNumber(record.latitude, 'latitude', row);
-  const lng = optionalNumber(record.longitude, 'longitude', row);
   if (!name) throw new Error(`Baris ${row}: name wajib diisi.`);
-  if (lat === undefined || lat < -90 || lat > 90) throw new Error(`Baris ${row}: latitude wajib berupa angka -90 sampai 90.`);
-  if (lng === undefined || lng < -180 || lng > 180) throw new Error(`Baris ${row}: longitude wajib berupa angka -180 sampai 180.`);
+  const { lat, lng } = requiredPlaceCoordinates(record, row);
   const fromServiceCenter = distanceKm(
     { lat: config.serviceLimits.centerLat, lng: config.serviceLimits.centerLng },
     { lat, lng },
@@ -54,7 +45,7 @@ function toPlace(record: CsvRow, row: number): SurveyPlaceInput {
   return {
     externalPlaceId: record.placeId?.trim() || undefined,
     name,
-    category: record.category?.trim() || undefined,
+    category: normalizePlaceCategory(record.category || '', record.searchKeyword || '', name),
     address: record.address?.trim() || undefined,
     lat,
     lng,

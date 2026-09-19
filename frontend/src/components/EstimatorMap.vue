@@ -28,38 +28,95 @@ let noticeTimer: ReturnType<typeof setTimeout> | undefined;
 let settleTimer: ReturnType<typeof setTimeout> | undefined;
 let placeLoadTimer: ReturnType<typeof setTimeout> | undefined;
 let placeLoadVersion = 0;
+let loadedSurveyPlaces: MapPlace[] = [];
 let alive = true;
 
+const categoryIcons: Record<string, string> = {
+  medical: '<path d="M8 3v10M3 8h10"/>',
+  education: '<path d="M2.5 4.5 8 2l5.5 2.5L8 7 2.5 4.5Zm2 1.8V10c2.3 1.7 4.7 1.7 7 0V6.3"/>',
+  worship: '<path d="M3 12.5h10M4 10.5h8M5 10.5V6h6v4.5M8 2.5 4.5 6h7L8 2.5Z"/>',
+  food: '<path d="M4 2v5M2.5 2v3.5C2.5 7 4 7 4 7s1.5 0 1.5-1.5V2M4 7v6M10.5 2v11M10.5 2c2 1.8 2 4 0 5"/>',
+  lodging: '<path d="M2.5 11.5v-7M2.5 9h11v2.5M5 6.5h6.5c1.1 0 2 .9 2 2V9M5 5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0Z"/>',
+  finance: '<path d="m2 6 6-3.5L14 6M3 7.5h10M4 7.5v4M7 7.5v4M10 7.5v4M13 7.5v4M2 13h12"/>',
+  automotive: '<path d="M9.8 3.1a3 3 0 0 0-3.7 3.7l-3.6 3.6a1.5 1.5 0 0 0 2.1 2.1l3.6-3.6a3 3 0 0 0 3.7-3.7L10 7.1 8.9 6l1.9-1.9-1-1Z"/>',
+  government: '<path d="m2 6 6-3.5L14 6M3 7.5h10M4 7.5v4M8 7.5v4M12 7.5v4M2 13h12"/>',
+  transport: '<path d="M2 4h8v7H2V4Zm8 2h2l2 2v3h-4V6ZM5 12.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Zm6.5 0a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Z"/>',
+  retail: '<path d="M4 5V4a4 4 0 0 1 8 0v1M2.5 5h11l-.8 8h-9.4l-.8-8ZM6 5V4a2 2 0 0 1 4 0v1"/>',
+  service: '<path d="m8 2 .8 3.2L12 6l-3.2.8L8 10l-.8-3.2L4 6l3.2-.8L8 2ZM3 10l.4 1.6L5 12l-1.6.4L3 14l-.4-1.6L1 12l1.6-.4L3 10Z"/>',
+  other: '<circle cx="8" cy="8" r="3"/>',
+};
+
+function categoryName(category?: string) {
+  const names: Record<string, string> = {
+    medical: 'Kesehatan', education: 'Pendidikan', worship: 'Tempat ibadah',
+    food: 'Makanan', lodging: 'Penginapan', finance: 'Keuangan',
+    automotive: 'Otomotif', government: 'Pemerintahan', transport: 'Transportasi',
+    retail: 'Toko', service: 'Jasa', other: 'Tempat',
+  };
+  return names[category || 'other'] || 'Tempat';
+}
+
 function surveyPlaceIcon(place: MapPlace) {
-  const initial = place.name.trim().charAt(0).toLocaleUpperCase('id-ID') || '•';
+  const category = place.type && categoryIcons[place.type] ? place.type : 'other';
   return L.divIcon({
-    className: 'survey-place-marker',
-    html: `<span class="survey-place-dot" aria-hidden="true">${initial.replace(/[<>&"']/g, '')}</span>`,
+    className: `survey-place-marker survey-category-${category}`,
+    html: `<span class="survey-place-dot" aria-hidden="true"><svg viewBox="0 0 16 16">${categoryIcons[category]}</svg></span>`,
     iconSize: [24, 24],
     iconAnchor: [12, 12],
   });
 }
 
+function displayRules(zoom: number) {
+  if (zoom < 16) return { maximum: 0, cellWidth: 9999, cellHeight: 9999, requestLimit: 1 };
+  if (zoom === 16) return { maximum: 16, cellWidth: 170, cellHeight: 60, requestLimit: 100 };
+  if (zoom === 17) return { maximum: 30, cellWidth: 130, cellHeight: 50, requestLimit: 140 };
+  if (zoom === 18) return { maximum: 52, cellWidth: 95, cellHeight: 42, requestLimit: 180 };
+  return { maximum: 80, cellWidth: 74, cellHeight: 36, requestLimit: 200 };
+}
+
+function declutterPlaces(places: MapPlace[], zoom: number): MapPlace[] {
+  const rules = displayRules(zoom);
+  if (!rules.maximum) return [];
+  const sorted = [...places].sort((a, b) =>
+    b.labelPriority - a.labelPriority || b.popularity - a.popularity || a.name.localeCompare(b.name, 'id'),
+  );
+  const occupied = new Set<string>();
+  const result: MapPlace[] = [];
+  for (const place of sorted) {
+    const point = map.project([place.lat, place.lng], zoom);
+    const key = `${Math.floor(point.x / rules.cellWidth)}:${Math.floor(point.y / rules.cellHeight)}`;
+    if (occupied.has(key)) continue;
+    occupied.add(key);
+    result.push(place);
+    if (result.length >= rules.maximum) break;
+  }
+  return result;
+}
+
 function renderSurveyPlaces(places: MapPlace[]) {
   if (!map || !surveyPlaceLayer) return;
   surveyPlaceLayer.clearLayers();
-  for (const place of places) {
+  const selecting = centerPicking.value;
+  for (const place of declutterPlaces(places, map.getZoom())) {
     const marker = L.marker([place.lat, place.lng], {
       icon: surveyPlaceIcon(place),
-      title: place.name,
+      title: `${place.name} · ${categoryName(place.type)}`,
       alt: place.name,
       riseOnHover: true,
       zIndexOffset: -250,
+      opacity: selecting ? 0.68 : 1,
     }).addTo(surveyPlaceLayer);
     const label = document.createElement('span');
+    label.className = 'survey-place-label-text';
     label.textContent = place.name;
     marker.bindTooltip(label, {
-      permanent: true,
-      direction: 'right',
-      offset: [8, 0],
-      className: 'survey-place-label',
+      permanent: !selecting,
+      direction: selecting ? 'top' : 'right',
+      offset: selecting ? [0, -10] : [7, 0],
+      className: `survey-place-label${selecting ? ' selection-tooltip' : ''}`,
     });
     marker.on('click', () => {
+      marker.openTooltip();
       if (centerPicking.value && props.selection && !props.busy) map.panTo([place.lat, place.lng]);
     });
   }
@@ -72,7 +129,9 @@ function scheduleSurveyPlaces() {
   placeLoadTimer = setTimeout(async () => {
     if (!alive || !map) return;
     const zoom = map.getZoom();
-    if (zoom < 14) {
+    const rules = displayRules(zoom);
+    if (!rules.maximum) {
+      loadedSurveyPlaces = [];
       surveyPlaceLayer?.clearLayers();
       return;
     }
@@ -81,10 +140,16 @@ function scheduleSurveyPlaces() {
       const places = await getMapPlaces({
         north: bounds.getNorth(), south: bounds.getSouth(),
         east: bounds.getEast(), west: bounds.getWest(),
-      }, zoom);
-      if (alive && version === placeLoadVersion) renderSurveyPlaces(places);
+      }, zoom, rules.requestLimit);
+      if (alive && version === placeLoadVersion) {
+        loadedSurveyPlaces = places;
+        renderSurveyPlaces(places);
+      }
     } catch {
-      if (alive && version === placeLoadVersion) surveyPlaceLayer?.clearLayers();
+      if (alive && version === placeLoadVersion) {
+        loadedSurveyPlaces = [];
+        surveyPlaceLayer?.clearLayers();
+      }
     }
   }, 260);
 }
@@ -241,6 +306,7 @@ watch(() => props.selection, target => {
   mapMoving.value = false;
   if (target && !props.busy) publishCenterPreview();
   else centerPoint.value = null;
+  if (map) renderSurveyPlaces(loadedSurveyPlaces);
 });
 watch(() => props.busy, busy => {
   for (const marker of [pickupMarker, destinationMarker]) {

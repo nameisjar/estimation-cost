@@ -8,7 +8,14 @@ export type GeocodedPlace = LocationPoint & {
   verified?: boolean;
   distanceMeters?: number;
 };
-export type MapPlace = GeocodedPlace & { id: string; minZoom: number; labelPriority: number };
+export type MapPlace = GeocodedPlace & {
+  id: string;
+  minZoom: number;
+  labelPriority: number;
+  popularity: number;
+  rating?: number;
+  reviewCount?: number;
+};
 export type Selection = 'pickup' | 'destination';
 export type UiState = 'idle' | 'selecting-pickup' | 'selecting-destination' | 'calculating' | 'success' | 'error';
 export type PricingConfig = { baseFare: number; includedKm: number; pricePerKm: number; minimumFare: number };
