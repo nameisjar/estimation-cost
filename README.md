@@ -1,6 +1,6 @@
 # AntarFix Estimator
 
-**Satu project, satu repository GitHub, dengan dua bagian: frontend dan backend.** Aplikasi publik untuk memilih titik A/B di peta dan menghitung estimasi jarak jalan, waktu, serta biaya pengiriman. Frontend menangani tampilan/peta; backend memvalidasi koordinat, menghubungi OSRM, dan menghitung tarif.
+**Satu project, satu repository GitHub, dengan dua bagian: frontend dan backend.** Aplikasi publik untuk memilih titik A/B di peta dan menghitung estimasi jarak jalan, waktu, serta biaya pengiriman. Frontend menangani tampilan/peta; backend memvalidasi koordinat, menghubungi OSRM, menghitung tarif, serta membaca data tempat hasil survei dari PostgreSQL + PostGIS.
 
 ## Struktur project
 
@@ -63,12 +63,36 @@ Pada macOS/Linux, gunakan `npm` dan salin .env.example hanya pada setup pertama.
 
 ## Environment
 
-- Backend: lihat `backend/.env.example` untuk PORT, OSRM, geocoding Nominatim, batas wilayah/jarak layanan, rate limit, tarif, FRONTEND_URL, dan WHATSAPP_NUMBER.
+- Backend: lihat `backend/.env.example` untuk PORT, OSRM, geocoding Nominatim, PostgreSQL, batas wilayah/jarak layanan, rate limit, tarif, FRONTEND_URL, dan WHATSAPP_NUMBER.
 - Frontend: `frontend/.env.example` menyediakan VITE_API_BASE_URL dan API_PROXY_TARGET.
 - Development default: VITE_API_BASE_URL kosong; Vite meneruskan `/api` dan `/health` ke API_PROXY_TARGET (http://localhost:3000).
 - FRONTEND_URL backend harus sesuai origin frontend. WHATSAPP_NUMBER boleh kosong. Format umum seperti `+62 812-3456-7890` diterima dan dinormalisasi; nilai yang tidak valid hanya menonaktifkan pemesanan WhatsApp tanpa menghentikan API.
 
 File `.env` disimpan lokal di komputer/server dan diabaikan Git. Commit `.env.example` serta semua package-lock.json (root/frontend/backend). Variabel VITE_* bersifat publik dan disematkan saat build; perubahan URL API frontend memerlukan rebuild, sedangkan perubahan environment backend memerlukan restart.
+
+## Data tempat hasil survei dengan PostGIS
+
+Database bersifat opsional. Tanpa `DATABASE_URL`, estimasi tetap berjalan dan pencarian memakai Nominatim/OpenStreetMap. Jika PostgreSQL + PostGIS dikonfigurasi, backend memprioritaskan data survei untuk pencarian dan reverse geocoding, lalu memakai Nominatim jika tidak ada hasil. Endpoint POI aktif mulai zoom 14; data baru memakai `min_zoom` 16 secara default agar label tidak terlalu padat.
+
+Header CSV yang didukung sama dengan data Anda:
+
+```csv
+placeId,name,category,address,latitude,longitude,rating,reviewCount,phone,website,openingHours,googleMapsUrl,searchKeyword,searchArea,collectedAt
+```
+
+Semua kolom header harus tersedia agar format konsisten. Nilai yang wajib hanya `name`, `latitude`, dan `longitude`; nilai lainnya boleh kosong. `placeId` tidak menjadi primary key database dan boleh kosong. Jika ada, nilainya dipakai sebagai ID sumber agar impor ulang memperbarui tempat yang sama. Tanpa `placeId`, importer mengenali kombinasi nama yang sama dalam jarak 20 meter. Simpan hanya data survei sendiri atau data yang memang boleh digunakan.
+
+Setup lokal/server setelah PostgreSQL dan ekstensi PostGIS tersedia:
+
+```bash
+cd backend
+# Isi DATABASE_URL di .env, contoh:
+# DATABASE_URL=postgresql://antarfix:password@127.0.0.1:5432/antarfix_estimator
+npm run db:migrate
+npm run places:import -- ./data/places.csv
+```
+
+Contoh format tersedia di `backend/data/places.example.csv`. Importer memeriksa header, koordinat, rating, jumlah ulasan, tanggal, dan radius area layanan. Proses dapat dijalankan ulang: data dengan `placeId` yang sama akan diperbarui, bukan digandakan.
 
 ## API dan pricing
 
@@ -78,6 +102,7 @@ File `.env` disimpan lokal di komputer/server dan diabaikan Git. Commit `.env.ex
 - POST /api/estimate?geometry=true: menambahkan geometri rute jalan GeoJSON dalam response untuk Leaflet.
 - GET /api/geocode/search?q=Merauke&lat=-8.4932&lng=140.4018: mencari maksimal lima tempat/alamat di sekitar fokus dalam radius lokal dan area layanan.
 - GET /api/geocode/reverse?lat=-8.4932&lng=140.4018: menerjemahkan koordinat menjadi nama dan alamat terdekat.
+- GET /api/places/map?north=...&south=...&east=...&west=...&zoom=16: mengambil POI survei dalam area peta untuk label Leaflet.
 
 ```text
 additionalKm = max(0, distanceKm - INCLUDED_KM)
@@ -172,6 +197,7 @@ Edit backend/.env: PORT=3000, FRONTEND_URL sesuai origin HTTPS, area/jarak layan
 
 ```bash
 npm run build
+cd backend && npm run db:migrate && cd ..
 pm2 start ecosystem.config.js
 pm2 save
 pm2 status
@@ -205,4 +231,4 @@ Peta Leaflet dan pencarian Nominatim memakai data OpenStreetMap dengan attributi
 
 API memiliki rate limit in-memory per alamat IP dan contoh Nginx menambahkan lapisan pembatas kedua. Halaman [privasi lokasi](frontend/public/privacy.html) menjelaskan pemakaian koordinat dan layanan pihak ketiga. Workflow `.github/workflows/ci.yml` menjalankan typecheck, lint, test, dan build pada setiap push serta pull request.
 
-Tanpa database, login, sistem order, pembayaran, tracking, atau Google Maps API. Tombol WhatsApp memakai nomor bisnis dari konfigurasi dan tidak mengirim pesan otomatis.
+Database PostGIS bersifat opsional dan hanya menyimpan katalog tempat survei. Aplikasi belum memiliki login, sistem order, pembayaran, tracking, atau Google Maps API. Tombol WhatsApp memakai nomor bisnis dari konfigurasi dan tidak mengirim pesan otomatis.

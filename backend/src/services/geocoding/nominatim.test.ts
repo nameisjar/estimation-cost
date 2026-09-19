@@ -27,7 +27,7 @@ test('Nominatim provider normalizes places, identifies the app and caches repeat
     );
     const point = { lat: -8.4932, lng: 140.4018 };
     const reverse = await provider.reverse(point);
-    assert.deepEqual(reverse, { ...point, name: 'Warung Mie Ayam', address: 'Jalan Mandala, Merauke', type: 'restaurant' });
+    assert.deepEqual(reverse, { ...point, name: 'Warung Mie Ayam', address: 'Jalan Mandala, Merauke', type: 'restaurant', source: 'openstreetmap' });
     assert.deepEqual(await provider.reverse(point), reverse);
     const results = await provider.search('Warung Mie Ayam', point);
     assert.equal(results[0]?.name, 'Warung Mie Ayam');

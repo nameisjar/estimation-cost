@@ -129,6 +129,7 @@ button:focus-visible,a:focus-visible,summary:focus-visible,input:focus-visible,s
 .search-results strong{color:#123e6d;font-size:10px}
 .search-results small{margin-top:3px;color:#75879b;font-size:8px}
 .search-result-icon{width:27px;height:27px;display:grid;place-items:center;border-radius:8px;background:#e8f3ff;color:#07509a}
+.survey-result-badge{display:inline-flex;width:max-content;margin-top:4px;padding:2px 6px;border-radius:999px;background:#e8f3ff;color:#07509a;font-size:8px;font-style:normal;font-weight:700;letter-spacing:.01em}
 .search-results button>svg{color:#ff5a0a}
 .search-attribution{display:inline-block;margin-top:7px;color:#7d8da0;font-size:8px;text-decoration:underline;text-underline-offset:2px}
 .place-search+.location-fields{margin-top:19px}
@@ -188,6 +189,10 @@ body:has(.place-picker-backdrop){overflow:hidden}
 /* Device location and draggable saved-location markers. */
 .map-actions button:disabled{opacity:.7}
 .point-marker{background:transparent!important;border:0!important;overflow:visible!important}
+.survey-place-marker{background:transparent!important;border:0!important}
+.survey-place-dot{display:grid;width:22px;height:22px;place-items:center;border:2px solid #fff;border-radius:50%;background:#1677c8;color:#fff;box-shadow:0 2px 7px #073b7a42;font:700 9px Manrope,sans-serif}
+.leaflet-tooltip.survey-place-label{margin-left:2px;padding:3px 7px;border:1px solid #cbdff1;border-radius:7px;background:#fffef5eF;color:#173b62;box-shadow:0 2px 8px #073b7a17;font:700 9px Manrope,sans-serif;white-space:nowrap}
+.leaflet-tooltip.survey-place-label:before{display:none}
 .saved-marker{display:block;width:44px;height:52px;overflow:visible;color:#ff5a0a;cursor:grab;filter:drop-shadow(0 5px 6px #073b7a3d);animation:marker-arrive .32s cubic-bezier(.2,.8,.2,1)}
 .saved-marker:active{cursor:grabbing}
 .saved-marker.marker-a{color:#073b7a;background:transparent!important}

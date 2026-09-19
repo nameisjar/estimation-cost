@@ -6,6 +6,7 @@ Object.assign(process.env, {
   OSRM_BASE_URL: 'https://router.project-osrm.org',
   OSRM_TIMEOUT_MS: '12000',
   GEOCODING_SEARCH_RADIUS_KM: '20',
+  DATABASE_URL: '',
   SERVICE_AREA_CENTER_LAT: '-8.4932',
   SERVICE_AREA_CENTER_LNG: '140.4018',
   SERVICE_AREA_RADIUS_KM: '50',

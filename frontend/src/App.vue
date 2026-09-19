@@ -897,7 +897,8 @@ onBeforeUnmount(clearCenterPreview);
                 <span class="search-result-icon"><MapPin :size="16" /></span
                 ><span
                   ><strong>{{ place.name }}</strong
-                  ><small>{{ place.address }}</small></span
+                  ><small>{{ place.address }}</small
+                  ><em v-if="place.source === 'antarfix'" class="survey-result-badge">Data AntarFix</em></span
                 ><ArrowRight :size="16" />
               </button>
             </li>
@@ -907,7 +908,7 @@ onBeforeUnmount(clearCenterPreview);
             href="https://www.openstreetmap.org/copyright"
             target="_blank"
             rel="noopener noreferrer"
-            >Data lokasi © OpenStreetMap contributors</a
+            >Data survei AntarFix + © OpenStreetMap contributors</a
           >
         </form>
 

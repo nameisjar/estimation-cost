@@ -1,6 +1,6 @@
 # AntarFix Estimator — Backend
 
-Bagian backend dari **satu project dan repository AntarFix Estimator**. Menggunakan Node.js 22.12+, Express 5, TypeScript, OSRM, dan pricing engine. Package, dependency, dan build berada di folder `backend/`. Tidak memakai database. Frontend berada di folder `frontend/` dan berkomunikasi melalui HTTP API; kedua bagian dapat dideploy pada host berbeda. Dokumentasi project ada di [README utama](../README.md).
+Bagian backend dari **satu project dan repository AntarFix Estimator**. Menggunakan Node.js 22.12+, Express 5, TypeScript, OSRM, pricing engine, serta PostgreSQL + PostGIS opsional untuk katalog tempat hasil survei. Package, dependency, dan build berada di folder `backend/`. Frontend berada di folder `frontend/` dan berkomunikasi melalui HTTP API; kedua bagian dapat dideploy pada host berbeda. Dokumentasi project ada di [README utama](../README.md).
 
 ## Struktur dan arsitektur
 
@@ -46,6 +46,8 @@ PowerShell: `npm.cmd` jika execution policy memblokir `npm.ps1`, dan `Copy-Item 
 | GEOCODING_TIMEOUT_MS | 10000 | Timeout request geocoding |
 | GEOCODING_USER_AGENT | AntarFixEstimator/1.0 (...) | Identitas aplikasi untuk provider geocoding; sesuaikan saat deployment |
 | GEOCODING_SEARCH_RADIUS_KM | 20 | Radius pencarian nama tempat dari fokus pencarian; maksimal sebesar radius layanan |
+| DATABASE_URL | kosong | Connection string PostgreSQL/PostGIS; kosong berarti fitur data survei dinonaktifkan |
+| DATABASE_POOL_MAX | 10 | Maksimum koneksi database backend |
 | SERVICE_AREA_CENTER_LAT | -8.4932 | Latitude pusat area layanan |
 | SERVICE_AREA_CENTER_LNG | 140.4018 | Longitude pusat area layanan |
 | SERVICE_AREA_RADIUS_KM | 50 | Radius maksimum titik jemput/tujuan dari pusat layanan |
@@ -62,6 +64,16 @@ PowerShell: `npm.cmd` jika execution policy memblokir `npm.ps1`, dan `Copy-Item 
 Tarif/URL berasal dari environment dan divalidasi saat startup. Isi `FRONTEND_URL` dengan origin persis, misalnya `https://estimator.antarfix.example` (contoh), tanpa path/trailing slash. Ubah variabel runtime → restart/redeploy backend. `.env` diabaikan Git; commit `.env.example` saja.
 
 Nomor WhatsApp kosong berarti pemesanan belum aktif. Format seperti `+62 812-3456-7890` dinormalisasi menjadi digit internasional. Nilai yang tidak dapat dinormalisasi menghasilkan peringatan saat startup dan menonaktifkan tombol WhatsApp, tetapi API estimasi tetap berjalan. `/api/config` menyediakan tarif dan nomor bisnis publik, bukan secret.
+
+## PostGIS dan import CSV survei
+
+Aktifkan ekstensi dan tabel dengan `npm run db:migrate`, lalu impor data menggunakan `npm run places:import -- <path.csv>`. Header CSV:
+
+```csv
+placeId,name,category,address,latitude,longitude,rating,reviewCount,phone,website,openingHours,googleMapsUrl,searchKeyword,searchArea,collectedAt
+```
+
+`name`, `latitude`, dan `longitude` wajib berisi nilai. Kolom lain boleh kosong, termasuk `placeId`. Data sumber lengkap tetap disimpan, sedangkan pencarian menggabungkan nama, kategori, alamat, kata kunci, dan area. Data survei menjadi hasil utama; Nominatim hanya dipakai saat database tidak menemukan kandidat. File contoh ada di `data/places.example.csv`.
 
 ## API
 
@@ -116,6 +128,10 @@ Latitude harus number finite -90 sampai 90; longitude number finite -180 sampai 
 `GET /api/geocode/search?q=Merauke&lat=-8.4932&lng=140.4018` mencari maksimal lima nama tempat/alamat di sekitar fokus tersebut. `lat` dan `lng` bersifat opsional tetapi harus dikirim berpasangan; tanpa fokus, backend memakai pusat area layanan. Query harus 3–120 karakter dan dipanggil setelah pengguna menekan tombol Cari. Radius default 20 km dibatasi lagi oleh area layanan menggunakan viewbox Nominatim. `GET /api/geocode/reverse?lat=-8.4932&lng=140.4018` mencari objek OpenStreetMap terdekat dari koordinat.
 
 Provider mengirim `User-Agent`, referer, bahasa Indonesia, membatasi request Nominatim publik menjadi satu per detik, dan memakai cache memori (10 menit untuk pencarian, 24 jam untuk reverse). Nama tempat tidak dijamin tersedia; hasil bergantung pada data OpenStreetMap dan koordinat tetap dipakai sebagai fallback. Atur `GEOCODING_USER_AGENT` ke identitas deployment yang nyata dan ikuti [Nominatim Usage Policy](https://operations.osmfoundation.org/policies/nominatim/).
+
+### GET /api/places/map
+
+Menerima `north`, `south`, `east`, `west`, `zoom`, dan `limit` opsional (maksimal 200). Endpoint mengembalikan tempat survei aktif dalam viewport untuk label Leaflet. Pada zoom di bawah 14 respons selalu kosong; tanpa konfigurasi database respons juga aman berupa array kosong.
 
 Error:
 
@@ -172,4 +188,4 @@ Gunakan satu repository AntarFix Estimator dan set working/root directory layana
 
 Konfigurasi PM2 tersedia pada `ecosystem.config.js` di root project: proses `antarfix-estimator-api`, cwd backend, dan script hasil build `backend/dist/server.js`. Jalankan `pm2 start ecosystem.config.js` dari root sesudah build. Petunjuk Nginx, PM2 save/startup, dan update ada di [README utama](../README.md).
 
-Tidak ada database, authentication, payment, order system, tracking, atau Google Maps API.
+PostGIS hanya digunakan untuk katalog tempat. Belum ada authentication, payment, order system, tracking, atau Google Maps API.

@@ -17,6 +17,13 @@ function httpUrl(name: string, fallback: string): string {
   if (!['https:', 'http:'].includes(parsed.protocol)) throw new Error(`Invalid configuration: ${name}`);
   return value.replace(/\/$/, '');
 }
+function optionalPostgresUrl(name: string): string {
+  const value = (process.env[name] || '').trim();
+  if (!value) return '';
+  const parsed = new URL(value);
+  if (!['postgres:', 'postgresql:'].includes(parsed.protocol)) throw new Error(`Invalid configuration: ${name}`);
+  return value;
+}
 export function normalizeWhatsAppNumber(value: string | undefined): string {
   const raw = (value || '').trim();
   if (!raw) return '';
@@ -44,6 +51,8 @@ export const config = {
   geocodingTimeoutMs: numeric('GEOCODING_TIMEOUT_MS', 10000, true),
   geocodingUserAgent: (process.env.GEOCODING_USER_AGENT || 'AntarFixEstimator/1.0 (estimator.antarfix.id)').trim(),
   geocodingSearchRadiusKm: numeric('GEOCODING_SEARCH_RADIUS_KM', 20),
+  databaseUrl: optionalPostgresUrl('DATABASE_URL'),
+  databasePoolMax: numeric('DATABASE_POOL_MAX', 10, true),
   frontendUrl: httpUrl('FRONTEND_URL', 'http://localhost:5173'),
   whatsappNumber,
   serviceLimits,
@@ -53,6 +62,7 @@ export const config = {
 if (
   config.port < 1 || config.port > 65535 ||
   config.osrmTimeoutMs < 1 || config.geocodingTimeoutMs < 1 ||
+  config.databasePoolMax < 1 ||
   !config.geocodingUserAgent || serviceLimits.radiusKm <= 0 ||
   config.geocodingSearchRadiusKm <= 0 || config.geocodingSearchRadiusKm > serviceLimits.radiusKm ||
   serviceLimits.maxDistanceKm <= 0 || rateLimit.windowMs <= 0 || rateLimit.maxRequests <= 0

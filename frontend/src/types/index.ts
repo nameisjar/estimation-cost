@@ -1,5 +1,14 @@
 export type LocationPoint = { lat: number; lng: number };
-export type GeocodedPlace = LocationPoint & { name: string; address: string; type?: string };
+export type GeocodedPlace = LocationPoint & {
+  id?: string;
+  name: string;
+  address: string;
+  type?: string;
+  source?: 'antarfix' | 'openstreetmap';
+  verified?: boolean;
+  distanceMeters?: number;
+};
+export type MapPlace = GeocodedPlace & { id: string; minZoom: number; labelPriority: number };
 export type Selection = 'pickup' | 'destination';
 export type UiState = 'idle' | 'selecting-pickup' | 'selecting-destination' | 'calculating' | 'success' | 'error';
 export type PricingConfig = { baseFare: number; includedKm: number; pricePerKm: number; minimumFare: number };

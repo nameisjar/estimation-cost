@@ -46,3 +46,32 @@ test('API health, pricing authority, geometry, errors and CORS', async () => {
     }
   } finally { await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve())); }
 });
+
+test('map places endpoint returns surveyed places and validates bounds', async () => {
+  let receivedZoom = 0;
+  const app = createApp(
+    { async route() { return { distanceKm: 1, durationMinutes: 2 }; } },
+    { async reverse() { return null; }, async search() { return []; } },
+    {
+      async search() { return []; },
+      async nearest() { return null; },
+      async inBounds(bounds, zoom) {
+        assert.deepEqual(bounds, { north: -8.4, south: -8.6, east: 140.5, west: 140.3 });
+        receivedZoom = zoom;
+        return [{ id: 'survey-1', name: 'Warung Survei', address: 'Merauke', lat: -8.49, lng: 140.4, minZoom: 16, labelPriority: 0, source: 'antarfix' }];
+      },
+    },
+  );
+  const server = app.listen(0, '127.0.0.1');
+  await new Promise<void>(resolve => server.once('listening', resolve));
+  const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  try {
+    const response = await fetch(`${base}/api/places/map?north=-8.4&south=-8.6&east=140.5&west=140.3&zoom=16`);
+    const body = await response.json();
+    assert.equal(response.status, 200);
+    assert.equal(receivedZoom, 16);
+    assert.equal(body.data[0].name, 'Warung Survei');
+    const invalid = await fetch(`${base}/api/places/map?north=-8.6&south=-8.4&east=140.5&west=140.3&zoom=16`);
+    assert.equal(invalid.status, 400);
+  } finally { await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve())); }
+});

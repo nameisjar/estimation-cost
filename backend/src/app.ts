@@ -11,15 +11,36 @@ import { NominatimProvider } from './services/geocoding/nominatim.provider.js';
 import type { GeocodingProvider, RoutingProvider } from './types/index.js';
 import { ServiceAreaService } from './services/service-area/service-area.service.js';
 import { createRateLimiter } from './middleware/rate-limit.js';
-export function createApp(
-  provider: RoutingProvider = new OsrmProvider(config.osrmBaseUrl, config.osrmTimeoutMs),
-  geocodingProvider: GeocodingProvider = new NominatimProvider(
+import { databasePool } from './database.js';
+import { PostgisPlaceRepository } from './services/places/postgis-place.repository.js';
+import { SurveyFirstGeocodingProvider } from './services/geocoding/survey-first.provider.js';
+import { placeRoutes } from './routes/place.routes.js';
+import type { PlaceRepository } from './types/index.js';
+
+function createNominatimProvider(): GeocodingProvider {
+  return new NominatimProvider(
     config.geocodingBaseUrl,
     config.geocodingTimeoutMs,
     config.geocodingUserAgent,
     config.frontendUrl,
     { searchRadiusKm: config.geocodingSearchRadiusKm, serviceLimits: config.serviceLimits },
-  ),
+  );
+}
+
+function createPlaceRepository(): PlaceRepository | undefined {
+  return databasePool
+    ? new PostgisPlaceRepository(
+        databasePool,
+        { lat: config.serviceLimits.centerLat, lng: config.serviceLimits.centerLng },
+        config.serviceLimits.radiusKm,
+      )
+    : undefined;
+}
+
+export function createApp(
+  provider: RoutingProvider = new OsrmProvider(config.osrmBaseUrl, config.osrmTimeoutMs),
+  geocodingProvider: GeocodingProvider = createNominatimProvider(),
+  placeRepository: PlaceRepository | undefined = createPlaceRepository(),
 ) {
   const app = express();
   app.disable('x-powered-by');
@@ -33,7 +54,11 @@ export function createApp(
   app.use('/api', createRateLimiter(config.rateLimit));
   app.get('/api/config', (_req, res) => { res.json({ success: true, data: { pricing: config.pricing, whatsappNumber: config.whatsappNumber, serviceArea: config.serviceLimits } }); });
   app.use('/api', estimateRoutes(new RoutingService(provider), new PricingService(config.pricing), new ServiceAreaService(config.serviceLimits)));
-  app.use('/api', geocodingRoutes(geocodingProvider));
+  const resolvedGeocoder = placeRepository
+    ? new SurveyFirstGeocodingProvider(placeRepository, geocodingProvider)
+    : geocodingProvider;
+  app.use('/api', geocodingRoutes(resolvedGeocoder));
+  app.use('/api', placeRoutes(placeRepository));
   app.use((_req, res) => { res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Endpoint tidak ditemukan.' } }); });
   const handleError: ErrorRequestHandler = (error, _req, res, _next) => {
     if (error instanceof ApiError) { res.status(error.status).json({ success: false, error: { code: error.code, message: error.message } }); return; }

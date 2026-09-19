@@ -3,7 +3,8 @@ import { computed, onMounted, onBeforeUnmount, watch, ref } from 'vue';
 import L from 'leaflet';
 import { LoaderCircle, LocateFixed, Maximize2 } from 'lucide-vue-next';
 import 'leaflet/dist/leaflet.css';
-import type { LocationPoint, Selection, Estimate } from '../types';
+import type { LocationPoint, Selection, Estimate, MapPlace } from '../types';
+import { getMapPlaces } from '../services/estimate.service';
 
 const props = defineProps<{ pickup: LocationPoint | null; destination: LocationPoint | null; selection: Selection | null; estimate: Estimate | null; busy: boolean }>();
 const emit = defineEmits<{ choose: [point: LocationPoint, target: Selection]; preview: [point: LocationPoint, target: Selection]; 'preview-start': [target: Selection]; located: [point: LocationPoint] }>();
@@ -21,10 +22,72 @@ let routeLayer: L.Polyline | null = null;
 let routeOutline: L.Polyline | null = null;
 let userLocationMarker: L.Marker | null = null;
 let accuracyCircle: L.Circle | null = null;
+let surveyPlaceLayer: L.LayerGroup | null = null;
 let observer: ResizeObserver;
 let noticeTimer: ReturnType<typeof setTimeout> | undefined;
 let settleTimer: ReturnType<typeof setTimeout> | undefined;
+let placeLoadTimer: ReturnType<typeof setTimeout> | undefined;
+let placeLoadVersion = 0;
 let alive = true;
+
+function surveyPlaceIcon(place: MapPlace) {
+  const initial = place.name.trim().charAt(0).toLocaleUpperCase('id-ID') || '•';
+  return L.divIcon({
+    className: 'survey-place-marker',
+    html: `<span class="survey-place-dot" aria-hidden="true">${initial.replace(/[<>&"']/g, '')}</span>`,
+    iconSize: [24, 24],
+    iconAnchor: [12, 12],
+  });
+}
+
+function renderSurveyPlaces(places: MapPlace[]) {
+  if (!map || !surveyPlaceLayer) return;
+  surveyPlaceLayer.clearLayers();
+  for (const place of places) {
+    const marker = L.marker([place.lat, place.lng], {
+      icon: surveyPlaceIcon(place),
+      title: place.name,
+      alt: place.name,
+      riseOnHover: true,
+      zIndexOffset: -250,
+    }).addTo(surveyPlaceLayer);
+    const label = document.createElement('span');
+    label.textContent = place.name;
+    marker.bindTooltip(label, {
+      permanent: true,
+      direction: 'right',
+      offset: [8, 0],
+      className: 'survey-place-label',
+    });
+    marker.on('click', () => {
+      if (centerPicking.value && props.selection && !props.busy) map.panTo([place.lat, place.lng]);
+    });
+  }
+}
+
+function scheduleSurveyPlaces() {
+  if (!map || !surveyPlaceLayer) return;
+  if (placeLoadTimer) clearTimeout(placeLoadTimer);
+  const version = ++placeLoadVersion;
+  placeLoadTimer = setTimeout(async () => {
+    if (!alive || !map) return;
+    const zoom = map.getZoom();
+    if (zoom < 14) {
+      surveyPlaceLayer?.clearLayers();
+      return;
+    }
+    const bounds = map.getBounds();
+    try {
+      const places = await getMapPlaces({
+        north: bounds.getNorth(), south: bounds.getSouth(),
+        east: bounds.getEast(), west: bounds.getWest(),
+      }, zoom);
+      if (alive && version === placeLoadVersion) renderSurveyPlaces(places);
+    } catch {
+      if (alive && version === placeLoadVersion) surveyPlaceLayer?.clearLayers();
+    }
+  }, 260);
+}
 
 function icon(letter: string) {
   const markerClass = letter === 'A' ? 'marker-a' : 'marker-b';
@@ -198,6 +261,7 @@ watch(() => props.estimate, estimate => {
 
 onMounted(() => {
   map = L.map(container.value!, { zoomControl: false, scrollWheelZoom: false }).setView([-8.4932, 140.4018], 14);
+  surveyPlaceLayer = L.layerGroup().addTo(map);
   L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap</a> contributors' }).addTo(map).on('tileerror', () => { showNotice('Sebagian peta belum dimuat. Periksa koneksi internet Anda.'); });
   L.control.zoom({ position: 'bottomright' }).addTo(map);
   map.on('movestart', () => {
@@ -216,6 +280,7 @@ onMounted(() => {
       pinSettling.value = true;
       settleTimer = setTimeout(() => { if (alive) pinSettling.value = false; }, 360);
     }
+    scheduleSurveyPlaces();
   });
   map.on('click', event => {
     if (!props.selection || props.busy) return;
@@ -225,12 +290,15 @@ onMounted(() => {
   observer = new ResizeObserver(() => map.invalidateSize());
   observer.observe(container.value!);
   syncMarkers();
+  scheduleSurveyPlaces();
 });
 
 onBeforeUnmount(() => {
   alive = false;
   if (noticeTimer) clearTimeout(noticeTimer);
   if (settleTimer) clearTimeout(settleTimer);
+  if (placeLoadTimer) clearTimeout(placeLoadTimer);
+  placeLoadVersion++;
   observer?.disconnect();
   map?.remove();
 });

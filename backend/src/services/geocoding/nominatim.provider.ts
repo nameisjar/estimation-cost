@@ -56,7 +56,7 @@ function normalizePlace(place: NominatimPlace): GeocodedPlace | null {
   const name = (place.name || place.namedetails?.name || addressName || displayName.split(',')[0] || 'Lokasi dipilih').trim();
   const parts = displayName.split(',').map(part => part.trim()).filter(Boolean);
   if (parts[0]?.localeCompare(name, undefined, { sensitivity: 'accent' }) === 0) parts.shift();
-  return { name, address: parts.join(', ') || displayName || `${lat.toFixed(6)}, ${lng.toFixed(6)}`, lat, lng, ...(place.type ? { type: place.type } : {}) };
+  return { name, address: parts.join(', ') || displayName || `${lat.toFixed(6)}, ${lng.toFixed(6)}`, lat, lng, source: 'openstreetmap', ...(place.type ? { type: place.type } : {}) };
 }
 
 export class NominatimProvider implements GeocodingProvider {

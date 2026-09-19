@@ -1,4 +1,4 @@
-import type { LocationPoint, Estimate, AppConfig, GeocodedPlace } from '../types';
+import type { LocationPoint, Estimate, AppConfig, GeocodedPlace, MapPlace } from '../types';
 const baseUrl = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
 export function isValidPoint(point: LocationPoint | null): point is LocationPoint {
   return !!point && Number.isFinite(point.lat) && Number.isFinite(point.lng) && Math.abs(point.lat) <= 90 && Math.abs(point.lng) <= 180;
@@ -28,6 +28,17 @@ export function searchPlaces(query: string, near?: LocationPoint | null) {
     params.set('lng', String(focus.lng));
   }
   return request<GeocodedPlace[]>(`/api/geocode/search?${params}`);
+}
+export function getMapPlaces(bounds: { north: number; south: number; east: number; west: number }, zoom: number) {
+  const params = new URLSearchParams({
+    north: String(bounds.north),
+    south: String(bounds.south),
+    east: String(bounds.east),
+    west: String(bounds.west),
+    zoom: String(Math.round(zoom)),
+    limit: '100',
+  });
+  return request<MapPlace[]>(`/api/places/map?${params}`);
 }
 export function estimateCost(pickup: LocationPoint, destination: LocationPoint) {
   if (!isValidPoint(pickup) || !isValidPoint(destination)) throw new Error('Pilih titik jemput dan tujuan yang valid.');

@@ -1,0 +1,2 @@
+placeId,name,category,address,latitude,longitude,rating,reviewCount,phone,website,openingHours,googleMapsUrl,searchKeyword,searchArea,collectedAt
+survey-001,Warung Mie Ayam Contoh,restaurant,"Jl. Contoh, Merauke",-8.4932,140.4018,4.5,12,6281234567890,https://example.com,"Senin-Minggu 08:00-21:00",https://maps.google.com/,mie ayam,Merauke,2026-09-19T09:00:00+09:00
