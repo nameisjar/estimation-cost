@@ -59,9 +59,14 @@ PowerShell: `npm.cmd` jika execution policy memblokir `npm.ps1`, dan `Copy-Item 
 | PRICE_PER_KM | 2500 | Tarif per km tambahan setelah ceiling |
 | MINIMUM_FARE | 8000 | Tarif minimum |
 | FRONTEND_URL | http://localhost:5173 | Satu origin frontend yang diizinkan CORS |
+| FRONTEND_URLS | kosong | Daftar origin frontend dipisahkan koma; menggantikan `FRONTEND_URL` bila diisi |
+| ADMIN_USERNAME | kosong | Username dashboard admin; isi bersama hash dan session secret |
+| ADMIN_PASSWORD_HASH | kosong | Hash scrypt dari perintah `npm run admin:hash-password` |
+| ADMIN_SESSION_SECRET | kosong | Secret penanda sesi, minimal 32 karakter |
+| ADMIN_SESSION_HOURS | 8 | Masa berlaku sesi admin, 1–168 jam |
 | WHATSAPP_NUMBER | kosong | Nomor bisnis internasional; digit saja atau format umum seperti `+62 812-...` |
 
-Tarif/URL berasal dari environment dan divalidasi saat startup. Isi `FRONTEND_URL` dengan origin persis, misalnya `https://estimator.antarfix.example` (contoh), tanpa path/trailing slash. Ubah variabel runtime → restart/redeploy backend. `.env` diabaikan Git; commit `.env.example` saja.
+Tarif/URL berasal dari environment dan divalidasi saat startup. Isi `FRONTEND_URL` dengan satu origin persis atau `FRONTEND_URLS` dengan beberapa origin yang dipisahkan koma, tanpa path/trailing slash. Ubah variabel runtime → restart/redeploy backend. `.env` diabaikan Git; commit `.env.example` saja.
 
 Nomor WhatsApp kosong berarti pemesanan belum aktif. Format seperti `+62 812-3456-7890` dinormalisasi menjadi digit internasional. Nilai yang tidak dapat dinormalisasi menghasilkan peringatan saat startup dan menonaktifkan tombol WhatsApp, tetapi API estimasi tetap berjalan. `/api/config` menyediakan tarif dan nomor bisnis publik, bukan secret.
 
@@ -133,13 +138,24 @@ Provider mengirim `User-Agent`, referer, bahasa Indonesia, membatasi request Nom
 
 Menerima `north`, `south`, `east`, `west`, `zoom`, dan `limit` opsional (maksimal 200). Endpoint mengembalikan tempat survei aktif dalam viewport untuk label Leaflet. Pada zoom di bawah 14 respons selalu kosong; tanpa konfigurasi database respons juga aman berupa array kosong.
 
+### Dashboard dan API admin
+
+Frontend dashboard tersedia pada `/admin`. Aktifkan akun dengan mengisi `ADMIN_USERNAME`, `ADMIN_PASSWORD_HASH`, dan `ADMIN_SESSION_SECRET` bersama-sama. Buat nilai yang diperlukan dengan:
+
+```bash
+npm run admin:hash-password -- "password-baru-yang-kuat"
+node -e "console.log(require('node:crypto').randomBytes(48).toString('hex'))"
+```
+
+API `/api/admin/*` memakai cookie sesi `HttpOnly` bertanda tangan, `SameSite=Strict`, masa berlaku terbatas, validasi origin CORS, dan header mutasi khusus. Endpoint mencakup login/logout, pemeriksaan sesi, statistik, daftar dengan pencarian serta filter status, tambah, edit, dan perubahan status tempat. Data tempat tidak dihapus permanen dari dashboard; nonaktifkan tempat agar riwayat tetap tersimpan dan tempat tidak muncul di estimator.
+
 Error:
 
 ```json
 {"success":false,"error":{"code":"INVALID_COORDINATES","message":"pickup.lat harus berupa angka antara -90 dan 90."}}
 ```
 
-HTTP 400 koordinat/JSON invalid, 403 origin ditolak, 413 body terlalu besar (batas 8 KB), 422 rute tidak ditemukan/di luar batas layanan, 429 terlalu banyak request, 502 upstream/network/response invalid, 504 OSRM timeout, dan 500 kesalahan internal tanpa stack trace. CORS hanya mengizinkan `FRONTEND_URL`; request tanpa Origin tetap tersedia untuk API publik/CLI. Rate limit in-memory diterapkan pada seluruh endpoint `/api` per alamat IP. Nginx production memberi lapisan rate limit tambahan.
+HTTP 400 koordinat/JSON invalid, 403 origin ditolak, 413 body terlalu besar (batas 8 KB), 422 rute tidak ditemukan/di luar batas layanan, 429 terlalu banyak request, 502 upstream/network/response invalid, 504 OSRM timeout, dan 500 kesalahan internal tanpa stack trace. CORS hanya mengizinkan origin dalam `FRONTEND_URLS` atau fallback `FRONTEND_URL`; request tanpa Origin tetap tersedia untuk API publik/CLI. Rate limit in-memory diterapkan pada seluruh endpoint `/api` per alamat IP. Nginx production memberi lapisan rate limit tambahan.
 
 ## Pricing
 
@@ -188,4 +204,4 @@ Gunakan satu repository AntarFix Estimator dan set working/root directory layana
 
 Konfigurasi PM2 tersedia pada `ecosystem.config.js` di root project: proses `antarfix-estimator-api`, cwd backend, dan script hasil build `backend/dist/server.js`. Jalankan `pm2 start ecosystem.config.js` dari root sesudah build. Petunjuk Nginx, PM2 save/startup, dan update ada di [README utama](../README.md).
 
-PostGIS hanya digunakan untuk katalog tempat. Belum ada authentication, payment, order system, tracking, atau Google Maps API.
+PostGIS digunakan untuk katalog tempat dan dashboard admin. Autentikasi hanya melindungi dashboard admin; belum ada akun pelanggan, payment, order system, tracking, atau Google Maps API.

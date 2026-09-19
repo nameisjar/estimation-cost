@@ -57,16 +57,38 @@ cd "D:\Doc\estimation cost\antarfix-estimator"
 npm.cmd run dev
 ```
 
-Perintah tersebut menjalankan backend dan frontend bersamaan dengan label log API/WEB. Buka http://localhost:5173/. Backend default http://localhost:3000/. Ctrl+C menghentikan keduanya; jika salah satu proses berhenti, proses lain juga dihentikan. Perbaiki konfigurasi yang menyebabkan error lalu jalankan kembali.
+Perintah tersebut menjalankan backend dan frontend bersamaan dengan label log API/WEB. Buka http://localhost:5173/. Dashboard pengelolaan tempat tersedia di http://localhost:5173/admin setelah akun admin dikonfigurasi. Backend default http://localhost:3000/. Ctrl+C menghentikan keduanya; jika salah satu proses berhenti, proses lain juga dihentikan. Perbaiki konfigurasi yang menyebabkan error lalu jalankan kembali.
+
+## Dashboard admin
+
+Dashboard `/admin` digunakan untuk mencari, menambah, mengubah, mengaktifkan, dan menonaktifkan data tempat. Form menyediakan pemilih koordinat Leaflet; klik peta atau geser marker agar posisi tempat presisi. Perubahan tempat aktif langsung dipakai oleh pencarian dan label peta estimator.
+
+Aktifkan akun admin dengan mengisi tiga variabel berikut di `backend/.env`:
+
+```env
+ADMIN_USERNAME=admin
+ADMIN_PASSWORD_HASH=scrypt$...
+ADMIN_SESSION_SECRET=rahasia-acak-minimal-32-karakter
+ADMIN_SESSION_HOURS=8
+```
+
+Buat hash password tanpa menyimpan password asli:
+
+```powershell
+npm.cmd --prefix backend run admin:hash-password -- "password-baru-yang-kuat"
+node -e "console.log(require('node:crypto').randomBytes(48).toString('hex'))"
+```
+
+Salin keluaran perintah pertama ke `ADMIN_PASSWORD_HASH` dan keluaran kedua ke `ADMIN_SESSION_SECRET`, lalu restart `npm.cmd run dev`. Ketiga variabel akun harus diisi bersama. File `.env` tidak masuk Git.
 
 Pada macOS/Linux, gunakan `npm` dan salin .env.example hanya pada setup pertama. Menjalankan `npm run dev` dari folder frontend/backend secara terpisah tetap tersedia bila diperlukan.
 
 ## Environment
 
-- Backend: lihat `backend/.env.example` untuk PORT, OSRM, geocoding Nominatim, PostgreSQL, batas wilayah/jarak layanan, rate limit, tarif, FRONTEND_URL, dan WHATSAPP_NUMBER.
+- Backend: lihat `backend/.env.example` untuk PORT, OSRM, geocoding Nominatim, PostgreSQL, batas wilayah/jarak layanan, rate limit, tarif, origin frontend, akun admin, dan WHATSAPP_NUMBER.
 - Frontend: `frontend/.env.example` menyediakan VITE_API_BASE_URL dan API_PROXY_TARGET.
 - Development default: VITE_API_BASE_URL kosong; Vite meneruskan `/api` dan `/health` ke API_PROXY_TARGET (http://localhost:3000).
-- FRONTEND_URL backend harus sesuai origin frontend. WHATSAPP_NUMBER boleh kosong. Format umum seperti `+62 812-3456-7890` diterima dan dinormalisasi; nilai yang tidak valid hanya menonaktifkan pemesanan WhatsApp tanpa menghentikan API.
+- FRONTEND_URL atau FRONTEND_URLS backend harus memuat origin frontend. WHATSAPP_NUMBER boleh kosong. Format umum seperti `+62 812-3456-7890` diterima dan dinormalisasi; nilai yang tidak valid hanya menonaktifkan pemesanan WhatsApp tanpa menghentikan API.
 
 File `.env` disimpan lokal di komputer/server dan diabaikan Git. Commit `.env.example` serta semua package-lock.json (root/frontend/backend). Variabel VITE_* bersifat publik dan disematkan saat build; perubahan URL API frontend memerlukan rebuild, sedangkan perubahan environment backend memerlukan restart.
 
@@ -231,4 +253,4 @@ Peta Leaflet dan pencarian Nominatim memakai data OpenStreetMap dengan attributi
 
 API memiliki rate limit in-memory per alamat IP dan contoh Nginx menambahkan lapisan pembatas kedua. Halaman [privasi lokasi](frontend/public/privacy.html) menjelaskan pemakaian koordinat dan layanan pihak ketiga. Workflow `.github/workflows/ci.yml` menjalankan typecheck, lint, test, dan build pada setiap push serta pull request.
 
-Database PostGIS bersifat opsional dan hanya menyimpan katalog tempat survei. Aplikasi belum memiliki login, sistem order, pembayaran, tracking, atau Google Maps API. Tombol WhatsApp memakai nomor bisnis dari konfigurasi dan tidak mengirim pesan otomatis.
+Database PostGIS bersifat opsional untuk estimator publik dan wajib untuk pengelolaan tempat di dashboard. Login yang tersedia khusus administrator dashboard; aplikasi belum memiliki akun pelanggan, sistem order, pembayaran, tracking, atau Google Maps API. Tombol WhatsApp memakai nomor bisnis dari konfigurasi dan tidak mengirim pesan otomatis.

@@ -65,7 +65,7 @@ const categoryPriority: Record<string, number> = {
   other: 60,
 };
 
-function ranking(place: SurveyPlaceInput) {
+export function rankSurveyPlace(place: SurveyPlaceInput) {
   const reviews = Math.max(place.reviewCount ?? 0, 0);
   const rating = Math.max(place.rating ?? 0, 0);
   const categoryScore = categoryPriority[place.category || 'other'] ?? categoryPriority.other!;
@@ -176,7 +176,7 @@ export class PostgisPlaceRepository implements PlaceRepository {
         LIMIT 1`,
       [place.externalPlaceId || null, place.name, place.lat, place.lng],
     );
-    const placeRanking = ranking(place);
+    const placeRanking = rankSurveyPlace(place);
     const values = [
       place.externalPlaceId?.trim() || null,
       place.name,

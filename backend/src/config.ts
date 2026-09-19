@@ -17,6 +17,18 @@ function httpUrl(name: string, fallback: string): string {
   if (!['https:', 'http:'].includes(parsed.protocol)) throw new Error(`Invalid configuration: ${name}`);
   return value.replace(/\/$/, '');
 }
+function httpUrls(): string[] {
+  const raw = process.env.FRONTEND_URLS || process.env.FRONTEND_URL || 'http://localhost:5173';
+  const values = raw.split(',').map(value => value.trim()).filter(Boolean);
+  if (!values.length) throw new Error('Invalid configuration: FRONTEND_URLS');
+  return values.map((value, index) => {
+    const parsed = new URL(value);
+    if (!['https:', 'http:'].includes(parsed.protocol) || parsed.pathname !== '/') {
+      throw new Error(`Invalid configuration: FRONTEND_URLS[${index}]`);
+    }
+    return value.replace(/\/$/, '');
+  });
+}
 function optionalPostgresUrl(name: string): string {
   const value = (process.env[name] || '').trim();
   if (!value) return '';
@@ -33,6 +45,17 @@ export function normalizeWhatsAppNumber(value: string | undefined): string {
   return '';
 }
 const whatsappNumber = normalizeWhatsAppNumber(process.env.WHATSAPP_NUMBER);
+const frontendUrls = httpUrls();
+const admin = {
+  username: (process.env.ADMIN_USERNAME || '').trim(),
+  passwordHash: (process.env.ADMIN_PASSWORD_HASH || '').trim(),
+  sessionSecret: (process.env.ADMIN_SESSION_SECRET || '').trim(),
+  sessionHours: numeric('ADMIN_SESSION_HOURS', 8, true),
+};
+const adminValues = [admin.username, admin.passwordHash, admin.sessionSecret].filter(Boolean).length;
+if (adminValues !== 0 && adminValues !== 3) throw new Error('ADMIN_USERNAME, ADMIN_PASSWORD_HASH, dan ADMIN_SESSION_SECRET harus diisi bersama.');
+if (admin.passwordHash && !/^scrypt\$[a-f0-9]{32}\$[a-f0-9]{128}$/i.test(admin.passwordHash)) throw new Error('Invalid configuration: ADMIN_PASSWORD_HASH');
+if (admin.sessionSecret && admin.sessionSecret.length < 32) throw new Error('ADMIN_SESSION_SECRET minimal 32 karakter.');
 const serviceLimits: ServiceLimits = {
   centerLat: boundedNumeric('SERVICE_AREA_CENTER_LAT', -8.4932, -90, 90),
   centerLng: boundedNumeric('SERVICE_AREA_CENTER_LNG', 140.4018, -180, 180),
@@ -53,7 +76,9 @@ export const config = {
   geocodingSearchRadiusKm: numeric('GEOCODING_SEARCH_RADIUS_KM', 20),
   databaseUrl: optionalPostgresUrl('DATABASE_URL'),
   databasePoolMax: numeric('DATABASE_POOL_MAX', 10, true),
-  frontendUrl: httpUrl('FRONTEND_URL', 'http://localhost:5173'),
+  frontendUrl: frontendUrls[0]!,
+  frontendUrls,
+  admin: { ...admin, enabled: adminValues === 3 },
   whatsappNumber,
   serviceLimits,
   rateLimit,
@@ -62,7 +87,7 @@ export const config = {
 if (
   config.port < 1 || config.port > 65535 ||
   config.osrmTimeoutMs < 1 || config.geocodingTimeoutMs < 1 ||
-  config.databasePoolMax < 1 ||
+  config.databasePoolMax < 1 || config.admin.sessionHours < 1 || config.admin.sessionHours > 168 ||
   !config.geocodingUserAgent || serviceLimits.radiusKm <= 0 ||
   config.geocodingSearchRadiusKm <= 0 || config.geocodingSearchRadiusKm > serviceLimits.radiusKm ||
   serviceLimits.maxDistanceKm <= 0 || rateLimit.windowMs <= 0 || rateLimit.maxRequests <= 0

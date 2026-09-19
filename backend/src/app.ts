@@ -16,6 +16,9 @@ import { PostgisPlaceRepository } from './services/places/postgis-place.reposito
 import { SurveyFirstGeocodingProvider } from './services/geocoding/survey-first.provider.js';
 import { placeRoutes } from './routes/place.routes.js';
 import type { PlaceRepository } from './types/index.js';
+import { AdminPlaceRepository } from './services/places/admin-place.repository.js';
+import { AdminAuthService } from './services/admin/admin-auth.service.js';
+import { adminRoutes } from './routes/admin.routes.js';
 
 function createNominatimProvider(): GeocodingProvider {
   return new NominatimProvider(
@@ -37,6 +40,10 @@ function createPlaceRepository(): PlaceRepository | undefined {
     : undefined;
 }
 
+function createAdminPlaceRepository(): AdminPlaceRepository | undefined {
+  return databasePool ? new AdminPlaceRepository(databasePool) : undefined;
+}
+
 export function createApp(
   provider: RoutingProvider = new OsrmProvider(config.osrmBaseUrl, config.osrmTimeoutMs),
   geocodingProvider: GeocodingProvider = createNominatimProvider(),
@@ -45,8 +52,8 @@ export function createApp(
   const app = express();
   app.disable('x-powered-by');
   app.set('trust proxy', 'loopback');
-  app.use(cors({ origin(origin, callback) {
-    if (!origin || origin === config.frontendUrl) callback(null, true);
+  app.use(cors({ credentials: true, origin(origin, callback) {
+    if (!origin || config.frontendUrls.includes(origin)) callback(null, true);
     else callback(new ApiError(403, 'ORIGIN_NOT_ALLOWED', 'Origin tidak diizinkan.'));
   } }));
   app.use(express.json({ limit: '8kb' }));
@@ -59,6 +66,10 @@ export function createApp(
     : geocodingProvider;
   app.use('/api', geocodingRoutes(resolvedGeocoder));
   app.use('/api', placeRoutes(placeRepository));
+  app.use('/api', adminRoutes(
+    createAdminPlaceRepository(),
+    new AdminAuthService(config.admin),
+  ));
   app.use((_req, res) => { res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Endpoint tidak ditemukan.' } }); });
   const handleError: ErrorRequestHandler = (error, _req, res, _next) => {
     if (error instanceof ApiError) { res.status(error.status).json({ success: false, error: { code: error.code, message: error.message } }); return; }

@@ -18,5 +18,9 @@ Object.assign(process.env, {
   PRICE_PER_KM: '2500',
   MINIMUM_FARE: '8000',
   FRONTEND_URL: 'http://localhost:5173',
+  FRONTEND_URLS: 'http://localhost:5173',
+  ADMIN_USERNAME: '',
+  ADMIN_PASSWORD_HASH: '',
+  ADMIN_SESSION_SECRET: '',
   WHATSAPP_NUMBER: '',
 });
