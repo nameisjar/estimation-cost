@@ -34,7 +34,7 @@ import {
   formatDistance,
   formatDuration,
   formatPoint,
-  whatsappUrl,
+  whatsappLinks,
 } from "./utils/format";
 import {
   locationPrecision,
@@ -103,6 +103,8 @@ let searchController: AbortController | undefined;
 const suggestionCache = new Map<string, GeocodedPlace[]>();
 let centerPreviewVersion = 0;
 let centerPreviewTimer: ReturnType<typeof setTimeout> | undefined;
+let whatsappFallbackTimer: number | undefined;
+let whatsappVisibilityHandler: (() => void) | undefined;
 
 const busy = computed(() => state.value === "calculating");
 const ready = computed(() => !!pickup.value && !!destination.value && !busy.value);
@@ -207,9 +209,9 @@ const destinationDisplayAddress = computed(() => {
       : "Cari tempat atau pilih di peta")
   );
 });
-const bookingUrl = computed(() =>
+const bookingLinks = computed(() =>
   estimate.value && settings.value && pickup.value && destination.value
-    ? whatsappUrl(
+    ? whatsappLinks(
         settings.value.whatsappNumber,
         {
           pickup: pickup.value,
@@ -223,6 +225,40 @@ const bookingUrl = computed(() =>
       )
     : null
 );
+
+function clearWhatsappFallback() {
+  if (whatsappFallbackTimer) clearTimeout(whatsappFallbackTimer);
+  whatsappFallbackTimer = undefined;
+  if (whatsappVisibilityHandler) {
+    document.removeEventListener("visibilitychange", whatsappVisibilityHandler);
+    window.removeEventListener("pagehide", whatsappVisibilityHandler);
+  }
+  whatsappVisibilityHandler = undefined;
+}
+
+function openBookingWhatsapp() {
+  const links = bookingLinks.value;
+  if (!links) return;
+  const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
+    || (/Macintosh/i.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
+  if (!isMobile) {
+    window.open(links.web, "_blank", "noopener,noreferrer");
+    return;
+  }
+
+  clearWhatsappFallback();
+  whatsappVisibilityHandler = () => {
+    if (document.hidden) clearWhatsappFallback();
+  };
+  document.addEventListener("visibilitychange", whatsappVisibilityHandler);
+  window.addEventListener("pagehide", whatsappVisibilityHandler);
+  whatsappFallbackTimer = window.setTimeout(() => {
+    const fallbackUrl = links.web;
+    clearWhatsappFallback();
+    if (!document.hidden) window.location.assign(fallbackUrl);
+  }, 1400);
+  window.location.assign(links.app);
+}
 
 async function reveal(element: HTMLElement | undefined, focus = false) {
   await nextTick();
@@ -856,6 +892,7 @@ function confirmMapSelection() {
 onBeforeUnmount(() => {
   clearCenterPreview();
   cancelPlaceSearch();
+  clearWhatsappFallback();
 });
 </script>
 
@@ -1084,18 +1121,18 @@ onBeforeUnmount(() => {
                   }}</strong>
                 </div>
               </details>
-              <a
-                v-if="bookingUrl"
+              <button
+                v-if="bookingLinks"
+                type="button"
                 class="whatsapp-button"
-                :href="bookingUrl"
-                target="_blank"
-                rel="noopener noreferrer"
-                ><MessageCircle :size="20" /><span>Pesan via WhatsApp</span></a
+                @click="openBookingWhatsapp"
               >
+                <MessageCircle :size="20" /><span>Pesan via WhatsApp</span>
+              </button>
               <button v-else class="whatsapp-button" disabled>
                 <MessageCircle :size="20" /> Pesan via WhatsApp
               </button>
-              <p v-if="!bookingUrl" class="booking-note">
+              <p v-if="!bookingLinks" class="booking-note">
                 {{
                   settings
                     ? "Pemesanan tersedia setelah nomor WhatsApp AntarFix dikonfigurasi."

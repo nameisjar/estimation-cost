@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { formatCurrency, formatDuration, whatsappUrl } from './format';
+import { formatCurrency, formatDuration, whatsappLinks, whatsappUrl } from './format';
 test('Rupiah formatting', () => { assert.equal(formatCurrency(8000), 'Rp8.000'); assert.equal(formatCurrency(18000), 'Rp18.000'); assert.equal(formatCurrency(25500), 'Rp25.500'); });
 test('duration formatting', () => { assert.equal(formatDuration(5), '±5 menit'); assert.equal(formatDuration(65), '±1 jam 5 menit'); assert.equal(formatDuration(60), '±1 jam'); assert.equal(formatDuration(0.4), '±1 menit'); });
 test('WhatsApp requires configured number and encodes coordinates and price', () => {
@@ -24,4 +24,12 @@ test('WhatsApp requires configured number and encodes coordinates and price', ()
   assert.ok(message.includes('Waktu tempuh: sekitar 12 menit'));
   assert.ok(message.includes('Biaya: *Rp18.000*'));
   assert.ok(!message.includes('�'));
+
+  const links = whatsappLinks('6281234567890', details)!;
+  const appUrl = new URL(links.app);
+  assert.equal(appUrl.protocol, 'whatsapp:');
+  assert.equal(appUrl.hostname, 'send');
+  assert.equal(appUrl.searchParams.get('phone'), '6281234567890');
+  assert.equal(appUrl.searchParams.get('text'), message);
+  assert.equal(links.web, whatsappUrl('6281234567890', details));
 });

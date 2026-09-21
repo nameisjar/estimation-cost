@@ -30,7 +30,7 @@ function locationMessage(label: string, point: LocationPoint, place?: GeocodedPl
   return details.join('\n');
 }
 
-export function whatsappUrl(number: string, details: WhatsAppEstimate) {
+export function whatsappLinks(number: string, details: WhatsAppEstimate) {
   if (!/^[1-9]\d{6,14}$/.test(number)) return null;
   const message = [
     'Halo AntarFix,',
@@ -48,5 +48,13 @@ export function whatsappUrl(number: string, details: WhatsAppEstimate) {
     '',
     'Mohon konfirmasi ketersediaan kurir dan biaya akhirnya. Terima kasih.',
   ].join('\n');
-  return `https://wa.me/${number}?text=${encodeURIComponent(message)}`;
+  const encodedMessage = encodeURIComponent(message);
+  return {
+    app: `whatsapp://send?phone=${number}&text=${encodedMessage}`,
+    web: `https://wa.me/${number}?text=${encodedMessage}`,
+  };
+}
+
+export function whatsappUrl(number: string, details: WhatsAppEstimate) {
+  return whatsappLinks(number, details)?.web || null;
 }

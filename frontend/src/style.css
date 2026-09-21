@@ -41,7 +41,7 @@ button:focus-visible,a:focus-visible,summary:focus-visible,input:focus-visible,s
 .point-pickup{background:#e8f3ff;color:#064b91;border-color:#c5dcf1}
 .point-destination{background:#fff0e8;color:#f25308;border-color:#ffd0b8}
 .location-marker-glyph{display:block;overflow:visible;color:currentColor;filter:drop-shadow(0 1px 1px #073b7a1f)}
-.location-marker-glyph-shape{fill:currentColor;stroke:#fff;stroke-width:1.6;stroke-linejoin:round;vector-effect:non-scaling-stroke}
+.location-marker-glyph-shape{fill:currentColor;stroke:#fff;stroke-width:1.6;stroke-linejoin:round}
 .location-marker-glyph-core{fill:#fff;stroke:none}
 .location-marker-glyph-center{fill:currentColor;stroke:none}
 .point-connector{border-color:#bfd0e0}
@@ -198,7 +198,7 @@ body:has(.place-picker-backdrop){overflow:hidden}
 .survey-place-marker{--place-color:#4f718e;overflow:visible!important;background:transparent!important;border:0!important;transition:opacity .18s ease}
 .survey-place-content{display:block;width:18px;height:18px;position:relative}
 .survey-place-dot{display:grid;width:18px;height:18px;place-items:center;position:relative;z-index:1;border:1.5px solid #fff;border-radius:50%;background:var(--place-color);color:#fff;box-shadow:0 2px 6px #073b7a38;transition:transform .16s ease,box-shadow .16s ease}
-.survey-place-dot svg{width:10.5px;height:10.5px;fill:none;stroke:currentColor;stroke-width:1.55;stroke-linecap:round;stroke-linejoin:round;vector-effect:non-scaling-stroke}
+.survey-place-dot svg{width:10.5px;height:10.5px;fill:none;stroke:currentColor;stroke-width:1.55;stroke-linecap:round;stroke-linejoin:round}
 .survey-place-marker:hover .survey-place-dot{transform:scale(1.14);box-shadow:0 3px 9px #073b7a55}
 .survey-category-medical{--place-color:#d84d55}.survey-category-education{--place-color:#2878bd}.survey-category-worship{--place-color:#7957b6}.survey-category-food{--place-color:#e66e27}.survey-category-lodging{--place-color:#5968ad}.survey-category-finance{--place-color:#2d8b67}.survey-category-automotive{--place-color:#526c80}.survey-category-government{--place-color:#315b8d}.survey-category-transport{--place-color:#17869b}.survey-category-retail{--place-color:#279784}.survey-category-service{--place-color:#4b8e91}.survey-category-sports{--place-color:#16845c}.survey-category-tourism{--place-color:#237f94}.survey-category-business{--place-color:#6c5e8c}
 .survey-place-inline-label{position:absolute;z-index:0;left:50%;top:22px;width:max-content;max-width:138px;overflow:hidden;border:0;background:transparent;color:color-mix(in srgb,var(--place-color) 82%,#102f52);font:700 9px/1.35 Manrope,sans-serif;text-align:center;text-overflow:ellipsis;white-space:nowrap;transform:translateX(-50%);text-shadow:-1px -1px 0 #fff,1px -1px 0 #fff,-1px 1px 0 #fff,1px 1px 0 #fff,0 1px 2px #fff;opacity:1}
@@ -209,12 +209,12 @@ body:has(.place-picker-backdrop){overflow:hidden}
 .saved-marker.marker-destination{--marker-color:#f45108;--marker-light:#ff8a46;background:transparent!important}
 .saved-marker-gradient-light{stop-color:var(--marker-light)}.saved-marker-gradient-dark{stop-color:var(--marker-color)}
 .saved-marker-body{filter:drop-shadow(0 3px 4px #073b7a3d);transform-origin:17px 18px;transition:transform .16s ease}
-.saved-marker-shape{stroke:#fff;stroke-width:2.2;stroke-linejoin:round;vector-effect:non-scaling-stroke}
+.saved-marker-shape{stroke:#fff;stroke-width:2.2;stroke-linejoin:round}
 .saved-marker-highlight{fill:#fff;opacity:.18;pointer-events:none}
-.saved-marker-core{fill:var(--marker-color);stroke:#fff;stroke-width:2;vector-effect:non-scaling-stroke}
-.saved-marker-stem-shadow,.saved-marker-stem{fill:none;stroke-linecap:round;vector-effect:non-scaling-stroke}.saved-marker-stem-shadow{stroke:#073b7a42;stroke-width:5}.saved-marker-stem{stroke:#fff;stroke-width:2.4}
-.saved-marker-dot{fill:var(--marker-color);stroke:#fff;stroke-width:2;filter:drop-shadow(0 1px 2px #073b7a55);vector-effect:non-scaling-stroke}
-.saved-marker-crosshair{fill:#fff9;opacity:0;pointer-events:none;transition:opacity .14s ease}.saved-marker-crosshair circle{stroke:var(--marker-color);stroke-width:1.5;vector-effect:non-scaling-stroke}.saved-marker-crosshair path{fill:none;stroke:var(--marker-color);stroke-width:1.5;stroke-linecap:round;vector-effect:non-scaling-stroke}.dragging-point-marker .saved-marker-crosshair{opacity:1}.dragging-point-marker .saved-marker{animation:none}
+.saved-marker-core{fill:var(--marker-color);stroke:#fff;stroke-width:2}
+.saved-marker-stem-shadow,.saved-marker-stem{fill:none;stroke-linecap:round}.saved-marker-stem-shadow{stroke:#073b7a42;stroke-width:5}.saved-marker-stem{stroke:#fff;stroke-width:2.4}
+.saved-marker-dot{fill:var(--marker-color);stroke:#fff;stroke-width:2;filter:drop-shadow(0 1px 2px #073b7a55)}
+.saved-marker-crosshair{fill:#fff9;opacity:0;pointer-events:none;transition:opacity .14s ease}.saved-marker-crosshair circle{stroke:var(--marker-color);stroke-width:1.5}.saved-marker-crosshair path{fill:none;stroke:var(--marker-color);stroke-width:1.5;stroke-linecap:round}.dragging-point-marker .saved-marker-crosshair{opacity:1}.dragging-point-marker .saved-marker{animation:none}
 .point-marker:hover .saved-marker-body{transform:scale(1.035)}.point-marker:active .saved-marker-body{transform:translateY(-2px) scale(1.045)}
 .selected-location-highlight{filter:drop-shadow(0 2px 3px #6d5d1638);animation:building-highlight-in .28s ease-out}.selected-location-highlight.area{filter:drop-shadow(0 2px 4px #6d5d1628)}
 .user-location-marker{background:transparent!important;border:0!important}
@@ -239,14 +239,14 @@ body:has(.place-picker-backdrop){overflow:hidden}
 .center-picker-target:after{content:'';position:absolute;left:50%;top:50%;width:11px;height:4px;border-radius:50%;background:#073b7a30;filter:blur(1px);transform:translate(-50%,-50%);transition:transform .18s ease,opacity .18s ease;animation:center-shadow-breathe 1.8s ease-in-out infinite}
 .center-picker-icon{position:absolute;z-index:1;left:50%;top:50%;width:44px;height:58px;overflow:visible;color:var(--target-color);transform:translate(-50%,-55px)}
 .center-picker-gradient-light{stop-color:var(--target-light)}.center-picker-gradient-dark{stop-color:var(--target-color)}
-.center-picker-shape{fill:url(#center-picker-gradient);stroke:#fff;stroke-width:2.2;stroke-linejoin:round;vector-effect:non-scaling-stroke}
+.center-picker-shape{fill:url(#center-picker-gradient);stroke:#fff;stroke-width:2.2;stroke-linejoin:round}
 .center-picker-highlight{fill:#fff;opacity:.2;pointer-events:none}
-.center-picker-core{fill:var(--target-color);stroke:#fff;stroke-width:2.5;vector-effect:non-scaling-stroke}
+.center-picker-core{fill:var(--target-color);stroke:#fff;stroke-width:2.5}
 .center-picker-body{filter:drop-shadow(0 5px 6px #073b7a38);transform-origin:28px 24px;transition:transform .2s cubic-bezier(.2,.8,.2,1)}
-.center-picker-guide path{fill:none;stroke-linecap:round;vector-effect:non-scaling-stroke}
+.center-picker-guide path{fill:none;stroke-linecap:round}
 .center-picker-guide-shadow{stroke:#073b7a45;stroke-width:5}
 .center-picker-guide-line{stroke:#fff;stroke-width:3}
-.center-picker-dot{fill:currentColor;stroke:#fff;stroke-width:2;filter:drop-shadow(0 2px 2px #073b7a45);vector-effect:non-scaling-stroke;transform-origin:28px 70px}
+.center-picker-dot{fill:currentColor;stroke:#fff;stroke-width:2;filter:drop-shadow(0 2px 2px #073b7a45);transform-origin:28px 70px}
 .center-picker-target.moving .center-picker-body{transform:translateY(-6px)}
 .center-picker-target.moving:after{opacity:.45;transform:translate(-50%,-50%) scale(.65);animation:none}
 .compact-reference-marker .saved-marker{transform:scale(.76);transform-origin:50% 90%;opacity:.8;animation:none}

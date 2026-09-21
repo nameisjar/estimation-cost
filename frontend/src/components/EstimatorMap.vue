@@ -56,12 +56,16 @@ function escapeMarkup(value: string): string {
 function surveyPlaceIcon(place: MapPlace, showLabel: boolean, selectedLabel: boolean) {
   const category = place.type || 'other';
   const iconType = resolvePlaceIcon(place.iconType, category);
+  const iconMarkup = placeIconSvg[iconType].replace(
+    /<(path|circle|rect|line|polyline|polygon|ellipse)\b/g,
+    '<$1 vector-effect="non-scaling-stroke"',
+  );
   const label = showLabel
     ? `<span class="survey-place-inline-label${selectedLabel ? ' selected' : ''}">${escapeMarkup(place.name)}</span>`
     : '';
   return L.divIcon({
     className: `survey-place-marker survey-category-${category}${showLabel ? ' has-label' : ''}`,
-    html: `<span class="survey-place-content"><span class="survey-place-dot" aria-hidden="true"><svg viewBox="0 0 16 16">${placeIconSvg[iconType]}</svg></span>${label}</span>`,
+    html: `<span class="survey-place-content"><span class="survey-place-dot" aria-hidden="true"><svg viewBox="0 0 16 16">${iconMarkup}</svg></span>${label}</span>`,
     iconSize: [20, 20],
     iconAnchor: [10, 10],
   });
@@ -208,12 +212,12 @@ function icon(target: Selection) {
   const markerClass = target === 'pickup' ? 'marker-pickup' : 'marker-destination';
   const gradientId = `saved-marker-gradient-${target}`;
   const shape = target === 'pickup'
-    ? '<circle class="saved-marker-shape" style="fill:url(#saved-marker-gradient-pickup)" cx="17" cy="15" r="12"/><ellipse class="saved-marker-highlight" cx="12.5" cy="9.5" rx="4.8" ry="2.4" transform="rotate(-24 12.5 9.5)"/>'
-    : '<path class="saved-marker-shape" style="fill:url(#saved-marker-gradient-destination)" d="M17 2.5C9.2 2.5 3 8.6 3 16.2c0 8.5 8.6 14.1 14 17.8 5.4-3.7 14-9.3 14-17.8C31 8.6 24.8 2.5 17 2.5Z"/><ellipse class="saved-marker-highlight" cx="12.5" cy="8.8" rx="5.5" ry="2.8" transform="rotate(-24 12.5 8.8)"/>';
+    ? '<circle class="saved-marker-shape" style="fill:url(#saved-marker-gradient-pickup)" cx="17" cy="15" r="12" vector-effect="non-scaling-stroke"/><ellipse class="saved-marker-highlight" cx="12.5" cy="9.5" rx="4.8" ry="2.4" transform="rotate(-24 12.5 9.5)"/>'
+    : '<path class="saved-marker-shape" style="fill:url(#saved-marker-gradient-destination)" d="M17 2.5C9.2 2.5 3 8.6 3 16.2c0 8.5 8.6 14.1 14 17.8 5.4-3.7 14-9.3 14-17.8C31 8.6 24.8 2.5 17 2.5Z" vector-effect="non-scaling-stroke"/><ellipse class="saved-marker-highlight" cx="12.5" cy="8.8" rx="5.5" ry="2.8" transform="rotate(-24 12.5 8.8)"/>';
   const stemStart = target === 'pickup' ? 20 : 29;
   return L.divIcon({
     className: 'point-marker',
-    html: `<svg class="saved-marker ${markerClass}" viewBox="0 0 34 42" aria-hidden="true"><defs><linearGradient id="${gradientId}" x1="6" y1="4" x2="28" y2="33" gradientUnits="userSpaceOnUse"><stop class="saved-marker-gradient-light"/><stop class="saved-marker-gradient-dark" offset="1"/></linearGradient></defs><path class="saved-marker-stem-shadow" d="M17 ${stemStart}V38"/><path class="saved-marker-stem" d="M17 ${stemStart}V38"/><g class="saved-marker-body">${shape}<circle class="saved-marker-core" cx="17" cy="15" r="4"/></g><g class="saved-marker-crosshair"><circle cx="17" cy="38" r="6.5"/><path d="M17 28.5V33M17 43V47.5M7.5 38H12M22 38H26.5"/></g><circle class="saved-marker-dot" cx="17" cy="38" r="2.75"/></svg>`,
+    html: `<svg class="saved-marker ${markerClass}" viewBox="0 0 34 42" aria-hidden="true"><defs><linearGradient id="${gradientId}" x1="6" y1="4" x2="28" y2="33" gradientUnits="userSpaceOnUse"><stop class="saved-marker-gradient-light"/><stop class="saved-marker-gradient-dark" offset="1"/></linearGradient></defs><path class="saved-marker-stem-shadow" d="M17 ${stemStart}V38" vector-effect="non-scaling-stroke"/><path class="saved-marker-stem" d="M17 ${stemStart}V38" vector-effect="non-scaling-stroke"/><g class="saved-marker-body">${shape}<circle class="saved-marker-core" cx="17" cy="15" r="4" vector-effect="non-scaling-stroke"/></g><g class="saved-marker-crosshair"><circle cx="17" cy="38" r="6.5" vector-effect="non-scaling-stroke"/><path d="M17 28.5V33M17 43V47.5M7.5 38H12M22 38H26.5" vector-effect="non-scaling-stroke"/></g><circle class="saved-marker-dot" cx="17" cy="38" r="2.75" vector-effect="non-scaling-stroke"/></svg>`,
     iconSize: [34, 42],
     iconAnchor: [17, 38],
   });
@@ -520,21 +524,21 @@ onBeforeUnmount(() => {
           </linearGradient>
         </defs>
         <g class="center-picker-guide">
-          <path class="center-picker-guide-shadow" :d="selection === 'pickup' ? 'M28 34V70' : 'M28 47V70'" />
-          <path class="center-picker-guide-line" :d="selection === 'pickup' ? 'M28 34V70' : 'M28 47V70'" />
+          <path class="center-picker-guide-shadow" :d="selection === 'pickup' ? 'M28 34V70' : 'M28 47V70'" vector-effect="non-scaling-stroke" />
+          <path class="center-picker-guide-line" :d="selection === 'pickup' ? 'M28 34V70' : 'M28 47V70'" vector-effect="non-scaling-stroke" />
         </g>
         <g class="center-picker-body">
           <template v-if="selection === 'pickup'">
-            <circle class="center-picker-shape" cx="28" cy="23" r="17" />
+            <circle class="center-picker-shape" cx="28" cy="23" r="17" vector-effect="non-scaling-stroke" />
             <ellipse class="center-picker-highlight" cx="21" cy="15" rx="7" ry="3.5" transform="rotate(-24 21 15)" />
           </template>
           <template v-else>
-            <path class="center-picker-shape" d="M28 2C15.7 2 6 11.6 6 23.8c0 13.2 13.5 22 22 27.4 8.5-5.4 22-14.2 22-27.4C50 11.6 40.3 2 28 2Z" />
+            <path class="center-picker-shape" d="M28 2C15.7 2 6 11.6 6 23.8c0 13.2 13.5 22 22 27.4 8.5-5.4 22-14.2 22-27.4C50 11.6 40.3 2 28 2Z" vector-effect="non-scaling-stroke" />
             <ellipse class="center-picker-highlight" cx="20" cy="12" rx="8.5" ry="4.2" transform="rotate(-24 20 12)" />
           </template>
-          <circle class="center-picker-core" cx="28" :cy="selection === 'pickup' ? 23 : 22" :r="selection === 'pickup' ? 5 : 5.5" />
+          <circle class="center-picker-core" cx="28" :cy="selection === 'pickup' ? 23 : 22" :r="selection === 'pickup' ? 5 : 5.5" vector-effect="non-scaling-stroke" />
         </g>
-        <circle class="center-picker-dot" cx="28" cy="70" r="3.5" />
+        <circle class="center-picker-dot" cx="28" cy="70" r="3.5" vector-effect="non-scaling-stroke" />
       </svg>
     </div>
     <div v-else-if="busy || estimate || (!pickup && !destination)" class="map-hint" aria-live="polite">
