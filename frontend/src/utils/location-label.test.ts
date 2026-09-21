@@ -5,6 +5,7 @@ import {
   locationPrecision,
   locationWithFallback,
   locationWithMapFallback,
+  normalizeMeraukeAddress,
   preferredLocationAddress,
   unnamedBuildingLabel,
 } from './location-label';
@@ -111,5 +112,13 @@ test('unnamed buildings use the most informative available address', () => {
   assert.equal(preferredLocationAddress('Jl. Nusa Barong', detailed, '-8.49, 140.38'), detailed);
   assert.equal(preferredLocationAddress('Jl. Nusa Barong No. 8', '', '-8.49, 140.38'), 'Jl. Nusa Barong No. 8');
   assert.equal(unnamedBuildingLabel(detailed), 'Bangunan di Jl. Nusa Barong');
-  assert.equal(unnamedBuildingLabel('Merauke, Papua Selatan'), 'Bangunan dipilih');
+  assert.equal(unnamedBuildingLabel('Mandala, Merauke, Papua Selatan'), 'Lokasi di Mandala');
+  assert.equal(unnamedBuildingLabel('Merauke, Papua Selatan'), 'Lokasi pada bangunan');
+});
+
+test('incorrect Merauke administrative levels from old cached data are normalized', () => {
+  assert.equal(
+    normalizeMeraukeAddress('Jl. Nusa Barong, Distrik Mandala, Kabupaten Semangga, Papua Selatan'),
+    'Jl. Nusa Barong, Mandala, Distrik Merauke, Kabupaten Merauke, Papua Selatan',
+  );
 });

@@ -16,6 +16,36 @@ const roadTypes = new Set([
 
 export type LocationPrecision = 'exact' | 'road' | 'approximate';
 
+const meraukeUrbanVillages = [
+  'Bambu Pemali',
+  'Karang Indah',
+  'Kelapa Lima',
+  'Mandala',
+  'Maro',
+  'Rimba Jaya',
+  'Samkai',
+  'Seringgu Jaya',
+];
+
+export function normalizeMeraukeAddress(value: string): string {
+  let address = value.trim();
+  if (!address) return address;
+
+  address = address.replace(/\bKabupaten\s+Semangga\b/gi, 'Kabupaten Merauke');
+  for (const village of meraukeUrbanVillages) {
+    address = address.replace(
+      new RegExp(`\\bDistrik\\s+${village.replace(/\s+/g, '\\s+')}\\b`, 'gi'),
+      `${village}, Distrik Merauke`,
+    );
+  }
+
+  return address
+    .replace(/\bKabupaten Merauke\s*,\s*Kabupaten Merauke\b/gi, 'Kabupaten Merauke')
+    .replace(/\bDistrik Merauke\s*,\s*Distrik Merauke\b/gi, 'Distrik Merauke')
+    .replace(/\s*,\s*/g, ', ')
+    .trim();
+}
+
 function fallbackName(target: Selection): string {
   return target === 'pickup' ? 'Titik jemput pilihan' : 'Titik tujuan pilihan';
 }
@@ -61,17 +91,21 @@ export function preferredLocationAddress(
   geocodedAddress: string | null | undefined,
   fallback: string,
 ): string {
-  const building = buildingAddress?.trim() || '';
-  const geocoded = geocodedAddress?.trim() || '';
+  const building = normalizeMeraukeAddress(buildingAddress || '');
+  const geocoded = normalizeMeraukeAddress(geocodedAddress || '');
   return addressDetailScore(geocoded) > addressDetailScore(building)
     ? geocoded
     : building || geocoded || fallback;
 }
 
 export function unnamedBuildingLabel(address: string): string {
-  const firstPart = address.split(',')[0]?.trim() || '';
+  const firstPart = normalizeMeraukeAddress(address).split(',')[0]?.trim() || '';
   if (/^(jalan|jl\.?|gang|gg\.?|lorong)\b/i.test(firstPart)) return `Bangunan di ${firstPart}`;
-  return 'Bangunan dipilih';
+  if (
+    firstPart
+    && !/^(merauke|papua(?: selatan)?|indonesia|kabupaten\b|distrik\b|-?\d)/i.test(firstPart)
+  ) return `Lokasi di ${firstPart}`;
+  return 'Lokasi pada bangunan';
 }
 
 function distanceMeters(first: LocationPoint, second: LocationPoint): number {

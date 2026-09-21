@@ -5,12 +5,12 @@ import {
   ArrowUpDown,
   Check,
   ChevronDown,
+  ChevronRight,
   Clock3,
+  Crosshair,
   Info,
   LoaderCircle,
   MapPin,
-  MessageCircle,
-  MousePointer2,
   Package,
   RotateCcw,
   Route,
@@ -20,6 +20,7 @@ import {
 import EstimatorMap from "./components/EstimatorMap.vue";
 import LocationMarkerGlyph from "./components/LocationMarkerGlyph.vue";
 import PlaceIconGlyph from "./components/PlaceIconGlyph.vue";
+import WhatsAppIcon from "./components/WhatsAppIcon.vue";
 import {
   estimateCost,
   getBuildingAt,
@@ -40,6 +41,7 @@ import {
   locationPrecision,
   locationWithFallback,
   locationWithMapFallback,
+  normalizeMeraukeAddress,
   preferredLocationAddress,
   unnamedBuildingLabel,
 } from "./utils/location-label";
@@ -88,6 +90,7 @@ const searchResults = ref<GeocodedPlace[]>([]);
 const searchBusy = ref(false);
 const searchError = ref("");
 const searchResultMode = ref<"suggestions" | "full">("suggestions");
+const openingWhatsapp = ref(false);
 const activeSuggestion = ref(-1);
 const suggestionSettled = ref(false);
 const showPlacePicker = ref(false);
@@ -104,6 +107,7 @@ const suggestionCache = new Map<string, GeocodedPlace[]>();
 let centerPreviewVersion = 0;
 let centerPreviewTimer: ReturnType<typeof setTimeout> | undefined;
 let whatsappFallbackTimer: number | undefined;
+let whatsappOpeningResetTimer: number | undefined;
 let whatsappVisibilityHandler: (() => void) | undefined;
 
 const busy = computed(() => state.value === "calculating");
@@ -239,6 +243,12 @@ function clearWhatsappFallback() {
 function openBookingWhatsapp() {
   const links = bookingLinks.value;
   if (!links) return;
+  openingWhatsapp.value = true;
+  if (whatsappOpeningResetTimer) clearTimeout(whatsappOpeningResetTimer);
+  whatsappOpeningResetTimer = window.setTimeout(() => {
+    openingWhatsapp.value = false;
+    whatsappOpeningResetTimer = undefined;
+  }, 3000);
   const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
     || (/Macintosh/i.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
   if (!isMobile) {
@@ -309,10 +319,23 @@ function isStoredPlace(value: unknown): value is GeocodedPlace {
 function loadRecentLocations() {
   try {
     const stored = JSON.parse(localStorage.getItem(recentLocationsKey) || "[]");
-    recentLocations.value = Array.isArray(stored) ? stored.filter(isStoredPlace).slice(0, 5) : [];
+    recentLocations.value = Array.isArray(stored)
+      ? stored.filter(isStoredPlace).map(normalizeRecentLocation).slice(0, 5)
+      : [];
+    persistRecentLocations();
   } catch {
     recentLocations.value = [];
   }
+}
+
+function normalizeRecentLocation(place: GeocodedPlace): GeocodedPlace {
+  const address = normalizeMeraukeAddress(place.address);
+  const genericBuildingName = /^(?:titik di\s+)?bangunan dipilih$/i.test(place.name.trim());
+  return {
+    ...place,
+    address,
+    name: genericBuildingName ? unnamedBuildingLabel(address) : place.name,
+  };
 }
 
 function persistRecentLocations() {
@@ -325,7 +348,7 @@ function persistRecentLocations() {
 
 function rememberRecentLocation(place: GeocodedPlace) {
   if (locationPrecision(place) === "approximate") return;
-  const storedPlace: GeocodedPlace = {
+  const storedPlace = normalizeRecentLocation({
     id: place.id,
     lat: place.lat,
     lng: place.lng,
@@ -335,7 +358,7 @@ function rememberRecentLocation(place: GeocodedPlace) {
     iconType: place.iconType,
     source: place.source,
     verified: place.verified,
-  };
+  });
   const sameLocation = (item: GeocodedPlace) =>
     Math.abs(item.lat - storedPlace.lat) < 0.00001
     && Math.abs(item.lng - storedPlace.lng) < 0.00001;
@@ -344,6 +367,13 @@ function rememberRecentLocation(place: GeocodedPlace) {
     ...recentLocations.value.filter(item => !sameLocation(item)),
   ].slice(0, 5);
   persistRecentLocations();
+}
+
+function isRecentLocationSelected(place: GeocodedPlace): boolean {
+  const point = searchTarget.value === "pickup" ? pickup.value : destination.value;
+  return !!point
+    && Math.abs(point.lat - place.lat) < 0.00001
+    && Math.abs(point.lng - place.lng) < 0.00001;
 }
 
 function clearRecentLocations() {
@@ -893,6 +923,7 @@ onBeforeUnmount(() => {
   clearCenterPreview();
   cancelPlaceSearch();
   clearWhatsappFallback();
+  if (whatsappOpeningResetTimer) clearTimeout(whatsappOpeningResetTimer);
 });
 </script>
 
@@ -1125,12 +1156,15 @@ onBeforeUnmount(() => {
                 v-if="bookingLinks"
                 type="button"
                 class="whatsapp-button"
+                :disabled="openingWhatsapp"
                 @click="openBookingWhatsapp"
               >
-                <MessageCircle :size="20" /><span>Pesan via WhatsApp</span>
+                <LoaderCircle v-if="openingWhatsapp" :size="22" class="spinner whatsapp-brand-icon" />
+                <WhatsAppIcon v-else :size="22" class="whatsapp-brand-icon" />
+                <span aria-live="polite">{{ openingWhatsapp ? "Membuka WhatsApp…" : "Lanjutkan di WhatsApp" }}</span>
               </button>
               <button v-else class="whatsapp-button" disabled>
-                <MessageCircle :size="20" /> Pesan via WhatsApp
+                <WhatsAppIcon :size="22" class="whatsapp-brand-icon" /> Lanjutkan di WhatsApp
               </button>
               <p v-if="!bookingLinks" class="booking-note">
                 {{
@@ -1139,6 +1173,7 @@ onBeforeUnmount(() => {
                     : "Informasi pemesanan belum dapat dimuat."
                 }}
               </p>
+              <p v-else class="whatsapp-helper">Pesan dan detail perjalanan sudah disiapkan.</p>
               <p class="estimate-note">
                 Harga dan waktu bersifat estimasi. Biaya akhir dikonfirmasi oleh AntarFix.
               </p>
@@ -1186,7 +1221,7 @@ onBeforeUnmount(() => {
             @preview-start="startCenterPreview"
             @located="deviceLocation = $event"
           />
-          <div class="map-caption"><span>Jarak mengikuti rute jalan.</span></div>
+          <!-- <div class="map-caption"><span>Jarak mengikuti rute jalan.</span></div> -->
         </div>
       </div>
 
@@ -1196,10 +1231,7 @@ onBeforeUnmount(() => {
     </main>
 
     <footer>
-      <a class="footer-brand" href="/">AntarFix<span> Estimator</span></a
-      ><span>Bagian dari ekosistem AntarFix</span
-      ><a class="footer-link" href="/privacy.html">Privasi lokasi</a
-      ><span class="footer-right">Dibuat untuk perjalanan yang lebih mudah.</span>
+      <a class="footer-brand" href="/">AntarFix<span> Estimator</span></a>
     </footer>
 
     <div
@@ -1322,6 +1354,12 @@ onBeforeUnmount(() => {
           </div>
         </form>
 
+        <button type="button" class="pick-map-button" @click="pickOnMap">
+          <Crosshair :size="18" aria-hidden="true" />
+          <strong>Tentukan lewat peta</strong>
+          <ChevronRight :size="17" aria-hidden="true" />
+        </button>
+
         <section v-if="showRecentLocations" class="recent-locations" aria-labelledby="recent-locations-title">
           <div class="recent-locations-header">
             <strong id="recent-locations-title">Terakhir digunakan</strong>
@@ -1332,31 +1370,31 @@ onBeforeUnmount(() => {
               v-for="place in recentLocations"
               :key="`recent-${place.lat},${place.lng},${place.name}`"
             >
-              <button type="button" @click="selectRecentLocation(place)">
-                <span class="search-result-icon recent-location-icon"><Clock3 :size="15" /></span
+              <button
+                type="button"
+                :class="{ selected: isRecentLocationSelected(place) }"
+                :aria-current="isRecentLocationSelected(place) ? 'true' : undefined"
+                @click="selectRecentLocation(place)"
+              >
+                <span
+                  class="search-result-icon recent-location-icon"
+                  :class="`search-category-${place.type || 'other'}`"
+                  ><PlaceIconGlyph :type="place.iconType || place.type" :category="place.type" :size="17" /></span
                 ><span
                   ><strong>{{ place.name }}</strong
                   ><small>{{ place.address }}</small></span
-                >
+                ><Check v-if="isRecentLocationSelected(place)" :size="17" class="recent-row-status" aria-label="Lokasi sedang dipilih" /><ChevronRight v-else :size="17" class="recent-row-chevron" aria-hidden="true" />
               </button>
             </li>
           </ul>
         </section>
-
-        <button type="button" class="pick-map-button" @click="pickOnMap">
-          <span><MousePointer2 :size="19" /></span
-          ><span
-            ><strong>Pilih langsung di peta</strong
-            ><small>Geser peta sampai pin berada di lokasi</small></span
-          >
-        </button>
 
         <details
           ref="manualDetails"
           class="manual-coordinates picker-manual"
           @toggle="toggleManual"
         >
-          <summary>Opsi lainnya: masukkan koordinat <ChevronDown :size="15" /></summary>
+          <summary><span>Masukkan koordinat</span><ChevronDown :size="15" /></summary>
           <form @submit.prevent="setManual">
             <div class="coordinate-inputs">
               <label

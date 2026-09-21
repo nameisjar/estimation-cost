@@ -155,23 +155,22 @@ footer{padding:17px 0 20px}
 
 .place-picker-backdrop{position:fixed;z-index:2000;inset:0;display:grid;place-items:center;padding:20px;background:#062c5a66;backdrop-filter:blur(5px)}
 body:has(.place-picker-backdrop){overflow:hidden}
-.place-picker{width:min(560px,100%);max-height:min(720px,calc(100dvh - 40px));overflow-y:auto;border:1px solid #d2e1ef;border-radius:20px;background:#fff;padding:22px;box-shadow:0 24px 70px #062c5a38;outline:0}
-.place-picker-header{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;padding-bottom:17px;border-bottom:1px solid #e5edf5}
+.place-picker{width:min(560px,100%);max-height:min(720px,calc(100dvh - 40px));overflow-y:auto;overscroll-behavior:contain;scrollbar-gutter:stable;-webkit-overflow-scrolling:touch;border:1px solid #d2e1ef;border-radius:20px;background:#fff;padding:22px;box-shadow:0 24px 70px #062c5a38;outline:0}
+.place-picker-header{position:sticky;z-index:5;top:-22px;display:flex;align-items:flex-start;justify-content:space-between;gap:18px;margin:-22px -22px 0;padding:22px 22px 17px;border-bottom:1px solid #e5edf5;background:#fff}
+.place-picker-header:before{display:none}
 .place-picker-header>div{display:flex;align-items:center;gap:11px;min-width:0}
 .place-picker-header h2{font-size:18px}
 .place-picker-header p{margin-top:4px;color:#74859a;font-size:10px;line-height:1.5}
-.place-picker-header>button{width:36px;height:36px;flex:0 0 36px;display:grid;place-items:center;border:1px solid #d6e3ef;border-radius:10px;background:#f7fbff;color:#174f8d}
+.place-picker-header>button{width:44px;height:44px;flex:0 0 44px;display:grid;place-items:center;border:1px solid #d6e3ef;border-radius:11px;background:#f7fbff;color:#174f8d}
 .picker-badge{width:34px;height:34px;flex:0 0 34px;display:grid;place-items:center;border-radius:50%;font-size:11px;font-weight:800}
 .place-picker .place-search{margin-top:18px;padding-bottom:14px;border-bottom:0}
 .place-picker .search-results{max-height:236px;overflow-y:auto}
-.pick-map-button{width:100%;display:grid;grid-template-columns:40px minmax(0,1fr) 18px;align-items:center;gap:10px;margin-top:4px;padding:11px;border:1px solid #cbddec;border-radius:12px;background:#f3f8fd;text-align:left}
-.pick-map-button>span:first-child{width:38px;height:38px;display:grid;place-items:center;border-radius:10px;background:#dceeff;color:#07509a}
-.pick-map-button>span:nth-child(2){min-width:0}
-.pick-map-button strong,.pick-map-button small{display:block}
-.pick-map-button strong{font-size:11px;color:#123e6d}
-.pick-map-button small{margin-top:3px;color:#75879b;font-size:9px}
-.pick-map-button>svg{color:#ff5a0a}
-.picker-manual{margin:14px 0 0;padding-top:14px}
+.pick-map-button{width:100%;min-height:50px;display:grid;grid-template-columns:22px minmax(0,1fr) 18px;align-items:center;gap:9px;margin:2px 0 15px;padding:0 13px;border:1px solid #a9c9e5;border-radius:8px;background:#fff;color:#07509a;text-align:left}
+.pick-map-button strong{min-width:0;font-size:11.5px;font-weight:700}
+.pick-map-button>svg:last-child{color:#7890a7}
+.pick-map-button:hover{border-color:#6aa1cf;background:#f8fbfe}
+.picker-manual{margin:0;padding:0;border-top:0;border-bottom:1px solid #e2eaf1}
+.picker-manual>summary{min-height:52px;align-items:center;padding:0 2px;color:#244a73;font-size:11px}
 .picker-manual form{padding-bottom:2px}
 
 .pricing-strip{display:block;margin-top:14px;padding:0;overflow:hidden;background:#edf5fc;border-color:#d4e3f1}
@@ -190,7 +189,7 @@ body:has(.place-picker-backdrop){overflow:hidden}
 @media(min-width:1350px){.map-panel{height:540px}}
 @media(max-width:1100px){.map-panel{height:500px}.pricing-expanded{gap:18px}}
 @media(max-width:800px){.site-header{height:66px}.journey-steps{margin-top:10px;margin-bottom:11px}.journey-steps li{min-height:50px}.location-card{padding:19px}.map-column{margin-top:12px;scroll-margin-top:66px}.map-panel{height:min(44vh,370px);min-height:330px}.result-card{scroll-margin-top:66px}.pricing-expanded{flex-wrap:wrap;gap:12px}.pricing-expanded .pricing-item:first-child{margin-left:0}.pricing-expanded .pricing-item{flex:1;min-width:135px}.pricing-expanded .pricing-info{flex-basis:100%}.closing-line{padding:13px 0 15px}footer{padding:15px 0 18px}}
-@media(max-width:540px){.site-header{height:62px}.journey-steps li{min-height:47px}.journey-steps li>span{width:23px;height:23px}.location-card{padding:17px 15px}.location-fields{margin-top:17px}.location-tip{margin-bottom:12px}.map-panel{height:340px;min-height:340px}.place-picker-backdrop{place-items:end center;padding:0}.place-picker{width:100%;max-height:88dvh;border-radius:20px 20px 0 0;padding:18px 15px calc(18px + env(safe-area-inset-bottom))}.place-picker-header h2{font-size:16px}.place-picker-header p{font-size:9px}.place-picker .place-search{margin-top:15px}.place-picker .search-results{max-height:232px}.picker-manual .coordinate-inputs{flex-direction:column}.picker-manual .coordinate-inputs label{width:100%}.pricing-strip{padding:0}.pricing-summary{min-height:58px;padding:8px 13px}.pricing-toggle{font-size:9px}.pricing-expanded{padding:5px 14px 15px}.closing-line{padding:11px 0 13px}footer{padding:13px 0 16px}}
+@media(max-width:540px){.site-header{height:62px}.journey-steps li{min-height:47px}.journey-steps li>span{width:23px;height:23px}.location-card{padding:17px 15px}.location-fields{margin-top:17px}.location-tip{margin-bottom:12px}.map-panel{height:340px;min-height:340px}.place-picker-backdrop{height:100dvh;place-items:end center;padding:0}.place-picker{width:100%;max-height:min(88dvh,calc(100dvh - env(safe-area-inset-top)));border-radius:20px 20px 0 0;padding:18px 15px calc(18px + env(safe-area-inset-bottom))}.place-picker-header{top:-18px;margin:-18px -15px 0;padding:18px 15px 14px}.place-picker-header h2{font-size:17px}.place-picker-header p{font-size:10.5px;line-height:1.45}.place-picker .place-search{margin-top:15px}.place-picker .search-results{max-height:232px}.picker-manual .coordinate-inputs{flex-direction:column}.picker-manual .coordinate-inputs label{width:100%}.pricing-strip{padding:0}.pricing-summary{min-height:58px;padding:8px 13px}.pricing-toggle{font-size:9px}.pricing-expanded{padding:5px 14px 15px}.closing-line{padding:11px 0 13px}footer{padding:13px 0 16px}}
 
 /* Device location and draggable saved-location markers. */
 .map-actions button:disabled{opacity:.7}
@@ -256,23 +255,28 @@ body:has(.place-picker-backdrop){overflow:hidden}
 .swap-button:disabled{background:#f8fafc;color:#9baabb;border-color:#e2eaf1}
 .leaflet-control-zoom{margin-bottom:22px!important}
 .pricing-summary{gap:0}
-.pick-map-button{grid-template-columns:40px minmax(0,1fr)}
+.pick-map-button{grid-template-columns:22px minmax(0,1fr) 18px}
 .whatsapp-button span{flex:0 1 auto}
 .inline-calculate svg:last-child,.mobile-action-bar .primary-button svg:last-child{margin-left:0}
 .location-status{display:flex;align-items:flex-start;gap:5px;margin:6px 2px 0;font-size:8.5px;line-height:1.45;color:#607d99}
 .location-status svg{flex:0 0 auto;margin-top:1px}
 .location-status.is-warning{color:#b95427}
 .location-status.is-loading{color:#607d99}
-.recent-locations{margin:0 0 14px}
-.recent-locations-header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 2px 7px}
-.recent-locations-header strong{color:#284d70;font-size:9px}
-.recent-locations-header button{border:0;background:transparent;color:#6f8295;padding:3px 0;font-size:8.5px}
+.recent-locations{margin:0 0 12px}
+.recent-locations-header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 2px 2px}
+.recent-locations-header strong{color:#284d70;font-size:10.5px}
+.recent-locations-header button{min-height:44px;display:inline-flex;align-items:center;border:0;background:transparent;color:#596f84;padding:0 2px;font-size:10px}
 .recent-locations-header button:hover{color:#0b5797}
-.recent-location-list{max-height:196px;overflow-y:auto}
-.recent-location-list button{grid-template-columns:22px minmax(0,1fr)}
-.recent-location-icon{background:#eef5fb;color:#356b9d}
+.recent-location-list{max-height:224px;overflow-y:auto;border:0;border-radius:0}
+.recent-location-list button{min-height:56px;grid-template-columns:26px minmax(0,1fr) 18px;gap:10px;padding:9px 2px}
+.recent-location-list button:hover{background:#f8fafc;box-shadow:none}
+.recent-location-icon{background:transparent}
+.recent-location-list button.selected{background:#f5f8fb;box-shadow:inset 2px 0 #0b67b2}
+.recent-row-status{color:#0b67b2}
+.recent-row-chevron{color:#93a2b0}
+.picker-attribution{min-height:44px;display:flex;align-items:center;justify-content:center;margin-top:8px;color:#65798c;font-size:8.5px}
 @media(max-width:800px){.closing-line{display:none}}
-@media(max-width:540px){.map-actions{top:11px}.map-notice{top:11px;left:11px;right:64px}.map-hint{left:11px;bottom:27px;transform:none;max-width:calc(100% - 78px)}.leaflet-control-zoom{margin-bottom:22px!important}.location-status{font-size:9px}.recent-location-list{max-height:174px}}
+@media(max-width:540px){.map-actions{top:11px}.map-notice{top:11px;left:11px;right:64px}.map-hint{left:11px;bottom:27px;transform:none;max-width:calc(100% - 78px)}.leaflet-control-zoom{margin-bottom:22px!important}.location-status{font-size:9px}.recent-location-list{max-height:224px}.recent-location-list strong{font-size:13px}.recent-location-list small{color:#63788e;font-size:11px}.pick-map-button strong{font-size:12.5px}.pick-map-button small{color:#63788e;font-size:10.5px}}
 @media(max-width:540px){.survey-place-content,.survey-place-dot{width:17px;height:17px}.survey-place-dot svg{width:10px;height:10px}.survey-place-inline-label{display:-webkit-box;top:21px;max-width:112px;overflow:hidden;font-size:8px;line-height:1.25;white-space:normal;-webkit-box-orient:vertical;-webkit-line-clamp:2}}
 
 /* Clear center-pin selection feedback. */
@@ -287,3 +291,43 @@ body:has(.place-picker-backdrop){overflow:hidden}
 @keyframes center-shadow-breathe{0%,100%{opacity:.55;transform:translate(-50%,-50%) scale(.88)}50%{opacity:.8;transform:translate(-50%,-50%) scale(1.06)}}
 @keyframes center-shadow-land{0%{opacity:.3;transform:translate(-50%,-50%) scale(.55)}65%{opacity:.85;transform:translate(-50%,-50%) scale(1.18)}100%{opacity:.65;transform:translate(-50%,-50%) scale(1)}}
 @media(prefers-reduced-motion:reduce){.center-picker-body,.center-picker-dot,.center-picker-target:after,.saved-marker{animation:none!important;transition:none!important}}
+
+/* Recognizable WhatsApp booking action. */
+.whatsapp-button{min-height:53px;position:relative;border:0;border-radius:12px;background:#25d366;color:#fff;font-size:12px;font-weight:750;letter-spacing:.01em;box-shadow:0 8px 20px #128c4b32;transition:background-color .18s ease,box-shadow .18s ease,transform .18s ease}
+.whatsapp-button:hover:not(:disabled){background:#20bd5a;box-shadow:0 10px 24px #128c4b40;transform:translateY(-1px)}
+.whatsapp-button:active:not(:disabled){background:#1eae53;box-shadow:0 4px 12px #128c4b30;transform:translateY(1px)}
+.whatsapp-button:focus-visible{outline:3px solid #25d36655;outline-offset:3px}
+.whatsapp-button:disabled{background:#9bcfad;color:#f7fffa;box-shadow:none;opacity:.78}
+.whatsapp-button span{flex:0 1 auto}
+.whatsapp-brand-icon{flex:0 0 auto}
+.whatsapp-helper{text-align:center;margin-top:8px;color:#638076;font-size:9px;line-height:1.5}
+@media(max-width:540px){.whatsapp-button{min-height:54px;border-radius:12px;font-size:12.5px}.whatsapp-brand-icon{width:23px;height:23px}.whatsapp-helper{font-size:9.5px}}
+@media(prefers-reduced-motion:reduce){.whatsapp-button{transition:none}.whatsapp-button:hover:not(:disabled),.whatsapp-button:active:not(:disabled){transform:none}}
+
+/* Flat, utility-first mobile location picker. */
+@media(max-width:540px){
+  .place-picker{max-height:90dvh;border-radius:16px 16px 0 0;padding-right:18px;padding-left:18px;box-shadow:0 -10px 36px #062c5a24}
+  .place-picker-header{top:-18px;margin-right:-18px;margin-left:-18px;padding:27px 18px 14px;border-bottom:0}
+  .place-picker-header:before{content:'';position:absolute;top:8px;left:50%;display:block;width:36px;height:4px;border-radius:999px;background:#cbd6df;transform:translateX(-50%)}
+  .place-picker-header>div{align-items:flex-start;gap:8px}
+  .place-picker-header>button{width:42px;height:42px;flex-basis:42px;border-radius:9px;background:#fff}
+  .picker-badge{width:28px;height:28px;flex-basis:28px;border:0;background:transparent}
+  .place-picker-header h2{font-size:17px;letter-spacing:-.2px}
+  .place-picker-header p{max-width:240px;margin-top:3px;color:#687d91;font-size:10.5px}
+  .place-picker .place-search{margin-top:2px;padding-bottom:17px;border-bottom:1px solid #e2eaf1}
+  .place-search>label{margin-bottom:9px;font-size:11px}
+  .place-search-input{border-radius:8px;background:#fff}
+  .place-search-input input{font-size:12px}
+  .search-button{border-radius:8px}
+  .recent-locations{margin-top:0}
+  .recent-locations-header{margin-bottom:0}
+  .recent-locations-header strong{font-size:11px}
+  .recent-locations-header button{font-size:10.5px}
+  .recent-location-list button{min-height:58px;padding:9px 3px}
+  .recent-location-list button.selected{background:#f6f9fc}
+  .recent-location-icon{width:24px;height:24px}
+  .pick-map-button{min-height:50px;margin:0 0 15px;padding:0 12px}
+  .pick-map-button strong{font-size:12px}
+  .picker-manual>summary{min-height:54px;font-size:11.5px}
+  .picker-attribution{margin-top:3px}
+}
