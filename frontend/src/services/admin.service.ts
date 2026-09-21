@@ -94,6 +94,9 @@ export function updateAdminPlace(id: string, place: AdminPlaceInput) {
 export function setAdminPlaceActive(id: string, active: boolean) {
   return request<AdminPlace>(`/api/admin/places/${id}/status`, { method: 'PATCH', body: JSON.stringify({ active }) });
 }
+export function deleteAdminPlace(id: string) {
+  return request<null>(`/api/admin/places/${id}`, { method: 'DELETE' });
+}
 export function reverseAdminAddress(lat: number, lng: number) {
   return request<{ address: string; name: string }>('/api/admin/address/reverse', {
     method: 'POST', body: JSON.stringify({ lat, lng }),

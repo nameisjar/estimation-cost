@@ -222,6 +222,32 @@ export class AdminPlaceRepository {
     return (await this.find(id))!;
   }
 
+  async deleteInactive(id: string): Promise<void> {
+    const result = await this.pool.query<{
+      place_exists: boolean;
+      place_active: boolean | null;
+      place_deleted: boolean;
+    }>(
+      `WITH candidate AS (
+         SELECT id, active FROM places WHERE id=$1
+       ), deleted AS (
+         DELETE FROM places
+          WHERE id IN (SELECT id FROM candidate WHERE active=FALSE)
+         RETURNING id
+       )
+       SELECT EXISTS(SELECT 1 FROM candidate) AS place_exists,
+              (SELECT active FROM candidate LIMIT 1) AS place_active,
+              EXISTS(SELECT 1 FROM deleted) AS place_deleted`,
+      [id],
+    );
+    const outcome = result.rows[0];
+    if (!outcome?.place_exists) throw new ApiError(404, 'PLACE_NOT_FOUND', 'Tempat tidak ditemukan.');
+    if (outcome.place_active) {
+      throw new ApiError(409, 'PLACE_MUST_BE_INACTIVE', 'Nonaktifkan tempat sebelum menghapusnya secara permanen.');
+    }
+    if (!outcome.place_deleted) throw new ApiError(409, 'PLACE_DELETE_CONFLICT', 'Tempat belum dapat dihapus. Muat ulang data lalu coba lagi.');
+  }
+
   async saveAutomaticAddress(id: string, address: string): Promise<AdminPlace> {
     const result = await this.pool.query(
       `UPDATE places

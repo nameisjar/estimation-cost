@@ -34,6 +34,19 @@ const administrativeAddressParts = [
   'suburb', 'neighbourhood', 'quarter', 'hamlet', 'postcode', 'country',
 ] as const;
 
+const meraukeDistrictLocalities = new Set([
+  'bambu pemali',
+  'karang indah',
+  'kelapa lima',
+  'mandala',
+  'maro',
+  'rimba jaya',
+  'samkai',
+  'seringgu jaya',
+  'wasur',
+  'nasem',
+]);
+
 function cleanAddressPart(value?: string): string {
   return (value || '').trim().replace(/\s+/g, ' ');
 }
@@ -50,7 +63,7 @@ function countyName(value?: string): string {
   if (!name) return '';
   if (/^(kabupaten|kab\.?|kota)\b/i.test(name)) return name;
   const regency = name.match(/^(.+?)\s+regency$/i);
-  return regency ? `Kabupaten ${regency[1]}` : `Kabupaten ${name}`;
+  return regency ? `Kabupaten ${regency[1]}` : name;
 }
 
 function administrativeBase(value: string): string {
@@ -80,16 +93,31 @@ function structuredAddress(address?: Record<string, string>): string {
   pushUnique(parts, address.hamlet);
   pushUnique(parts, address.village);
   pushUnique(parts, address.town);
-  const district = districtName(address.city_district || address.district);
-  pushUnique(parts, district);
+  const locality = cleanAddressPart(
+    address.village || address.town || address.suburb || address.neighbourhood || address.quarter,
+  );
+  const province = cleanAddressPart(address.state || address.region);
   const city = cleanAddressPart(address.city);
-  const county = countyName(address.county || address.municipality);
+  const rawDistrict = cleanAddressPart(address.city_district || address.district);
+  const rawCounty = cleanAddressPart(address.county || address.municipality);
+  const isMeraukeRegency = administrativeBase(city) === 'merauke'
+    && administrativeBase(province) === 'papua selatan';
+  const trustedMeraukeDistrict = isMeraukeRegency
+    && meraukeDistrictLocalities.has(administrativeBase(locality));
+  const ambiguousMeraukeCounty = isMeraukeRegency
+    && !!rawCounty
+    && !/^(kabupaten|kab\.?|kota)\b/i.test(rawCounty)
+    && !/\s+regency$/i.test(rawCounty);
+  const district = trustedMeraukeDistrict
+    ? 'Distrik Merauke'
+    : districtName(rawDistrict || (ambiguousMeraukeCounty ? rawCounty : undefined));
+  pushUnique(parts, district);
+  const county = isMeraukeRegency ? 'Kabupaten Merauke' : countyName(rawCounty);
   if (
     (!district || administrativeBase(city) !== administrativeBase(district))
     && (!county || administrativeBase(city) !== administrativeBase(county))
   ) pushUnique(parts, city);
   pushUnique(parts, county);
-  const province = cleanAddressPart(address.state || address.region);
   const postcode = cleanAddressPart(address.postcode);
   pushUnique(parts, province && postcode ? `${province} ${postcode}` : province || postcode);
   return parts.join(', ');

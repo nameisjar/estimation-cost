@@ -1,15 +1,15 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, nextTick, onMounted, ref } from 'vue';
 import {
   ArrowLeft, ChevronLeft, ChevronRight, CircleAlert, Database, Edit3,
-  Eye, EyeOff, LoaderCircle, LogOut, MapPinned, Menu, Plus, Search, Store, Upload, WandSparkles, X,
+  Eye, EyeOff, LoaderCircle, LogOut, MapPinned, Menu, Plus, Search, Store, Trash2, Upload, WandSparkles, X,
 } from 'lucide-vue-next';
 import AdminPlaceForm from './components/admin/AdminPlaceForm.vue';
 import AdminCsvImport from './components/admin/AdminCsvImport.vue';
 import PlaceIconGlyph from './components/PlaceIconGlyph.vue';
 import { getConfig } from './services/estimate.service';
 import {
-  AdminApiError, adminLogin, adminLogout, createAdminPlace, enrichAdminPlaceAddress, getAdminPlaces,
+  AdminApiError, adminLogin, adminLogout, createAdminPlace, deleteAdminPlace, enrichAdminPlaceAddress, getAdminPlaces,
   getAdminSession, getAdminStats, setAdminPlaceActive, updateAdminPlace,
   type AdminPlace, type AdminPlaceInput, type AdminSession, type AdminStats, type PlaceCsvImportResult,
 } from './services/admin.service';
@@ -37,6 +37,10 @@ const importOpen = ref(false);
 const editingPlace = ref<AdminPlace | null>(null);
 const saving = ref(false);
 const enrichingPlaceId = ref('');
+const deletingPlace = ref<AdminPlace | null>(null);
+const deleting = ref(false);
+const deleteError = ref('');
+const deleteDialog = ref<HTMLElement>();
 const formError = ref('');
 const toast = ref('');
 const serviceCenter = ref({ lat: -8.4932, lng: 140.4018 });
@@ -151,6 +155,37 @@ async function togglePlace(place: AdminPlace) {
   } catch (error) { notify(message(error)); }
 }
 
+async function openDelete(place: AdminPlace) {
+  if (place.active) return;
+  deletingPlace.value = place;
+  deleteError.value = '';
+  await nextTick();
+  deleteDialog.value?.focus({ preventScroll: true });
+}
+
+function closeDelete() {
+  if (deleting.value) return;
+  deletingPlace.value = null;
+  deleteError.value = '';
+}
+
+async function confirmDelete() {
+  const place = deletingPlace.value;
+  if (!place || place.active || deleting.value) return;
+  deleting.value = true;
+  deleteError.value = '';
+  try {
+    await deleteAdminPlace(place.id);
+    deletingPlace.value = null;
+    notify(`${place.name} dihapus permanen.`);
+    await loadData();
+  } catch (error) {
+    deleteError.value = message(error);
+  } finally {
+    deleting.value = false;
+  }
+}
+
 async function enrichAddress(place: AdminPlace) {
   if (enrichingPlaceId.value) return;
   enrichingPlaceId.value = place.id;
@@ -230,7 +265,7 @@ function addressStatusLabel(place: AdminPlace) {
                   <td data-label="Kategori"><span class="admin-category-pill">{{ categoryLabel(place.category) }}</span></td>
                   <td data-label="Koordinat"><span class="admin-coordinate">{{ place.lat.toFixed(5) }}, {{ place.lng.toFixed(5) }}</span><small class="admin-updated">Diperbarui {{ new Date(place.updatedAt).toLocaleDateString('id-ID') }}</small></td>
                   <td data-label="Status"><span class="admin-status" :class="{ inactive: !place.active }"><i></i>{{ place.active ? 'Aktif' : 'Nonaktif' }}</span></td>
-                  <td class="admin-row-actions"><button v-if="place.addressSource === 'missing'" title="Cari alamat otomatis" :disabled="!!enrichingPlaceId" @click="enrichAddress(place)"><LoaderCircle v-if="enrichingPlaceId === place.id" :size="16" class="spin" /><WandSparkles v-else :size="16" /></button><button title="Edit tempat" @click="openEdit(place)"><Edit3 :size="16" /></button><button :title="place.active ? 'Nonaktifkan' : 'Aktifkan'" @click="togglePlace(place)"><EyeOff v-if="place.active" :size="16" /><Eye v-else :size="16" /></button></td>
+                  <td class="admin-row-actions"><button v-if="place.addressSource === 'missing'" title="Cari alamat otomatis" :disabled="!!enrichingPlaceId" @click="enrichAddress(place)"><LoaderCircle v-if="enrichingPlaceId === place.id" :size="16" class="spin" /><WandSparkles v-else :size="16" /></button><button title="Edit tempat" @click="openEdit(place)"><Edit3 :size="16" /></button><button :title="place.active ? 'Nonaktifkan' : 'Aktifkan'" @click="togglePlace(place)"><EyeOff v-if="place.active" :size="16" /><Eye v-else :size="16" /></button><button v-if="!place.active" class="admin-delete-row-button" title="Hapus permanen" aria-label="Hapus tempat secara permanen" @click="openDelete(place)"><Trash2 :size="16" /></button></td>
                 </tr>
               </tbody>
             </table>
@@ -242,6 +277,35 @@ function addressStatusLabel(place: AdminPlace) {
 
     <AdminPlaceForm v-if="formOpen" :place="editingPlace" :center="serviceCenter" :saving="saving" :server-error="formError" @close="formOpen = false" @save="savePlace" />
     <AdminCsvImport v-if="importOpen" @close="importOpen = false" @imported="importedCsv" />
+    <div v-if="deletingPlace" class="admin-delete-backdrop" @click.self="closeDelete">
+      <section
+        ref="deleteDialog"
+        class="admin-delete-dialog"
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby="admin-delete-title"
+        aria-describedby="admin-delete-description"
+        tabindex="-1"
+        @keydown.esc="closeDelete"
+      >
+        <div class="admin-delete-icon" aria-hidden="true"><Trash2 :size="21" /></div>
+        <h2 id="admin-delete-title">Hapus tempat permanen?</h2>
+        <p id="admin-delete-description">
+          <strong>{{ deletingPlace.name }}</strong> akan dihapus dari database dan tidak dapat dipulihkan.
+        </p>
+        <div class="admin-delete-warning">
+          Data dapat muncul kembali jika tempat ini masih terdapat dalam CSV yang diimpor berikutnya.
+        </div>
+        <p v-if="deleteError" class="admin-delete-error" role="alert">{{ deleteError }}</p>
+        <footer>
+          <button class="admin-secondary-button" :disabled="deleting" @click="closeDelete">Batal</button>
+          <button class="admin-danger-button" :disabled="deleting" @click="confirmDelete">
+            <LoaderCircle v-if="deleting" :size="16" class="spin" /><Trash2 v-else :size="16" />
+            {{ deleting ? 'Menghapus…' : 'Hapus permanen' }}
+          </button>
+        </footer>
+      </section>
+    </div>
     <Transition name="admin-toast"><div v-if="toast" class="admin-toast">{{ toast }}</div></Transition>
   </div>
 </template>

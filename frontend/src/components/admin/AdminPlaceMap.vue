@@ -24,9 +24,10 @@ function move(point: L.LatLng, publish = true) {
 
 onMounted(() => {
   map = L.map(container.value!, { zoomControl: false }).setView([props.lat, props.lng], 17);
+  map.attributionControl.setPrefix(false);
   L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: 19,
-    attribution: '&copy; OpenStreetMap contributors',
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap</a>',
   }).addTo(map);
   L.control.zoom({ position: 'bottomright' }).addTo(map);
   marker = L.marker([props.lat, props.lng], { icon: pinIcon, draggable: true, title: 'Geser untuk mengubah koordinat' }).addTo(map);

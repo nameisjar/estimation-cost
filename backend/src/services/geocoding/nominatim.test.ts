@@ -122,20 +122,20 @@ test('Nominatim reverse keeps trunk roads and uses address road for a generic re
   } finally { globalThis.fetch = originalFetch; }
 });
 
-test('Nominatim formats Indonesian administrative levels and omits the country', async () => {
+test('Nominatim corrects ambiguous Merauke county data and omits the country', async () => {
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async () => new Response(JSON.stringify({
     lat: '-8.49176',
     lon: '140.38665',
     type: 'building',
-    display_name: 'Jalan Nusa Barong, Merauke, Semangga, Merauke Regency, Papua Selatan, 99613, Indonesia',
+    display_name: 'Jalan Sumatra, Seringgu Jaya, Merauke, Semangga, Papua Selatan, 99614, Indonesia',
     address: {
-      road: 'Jl. Nusa Barong',
-      village: 'Merauke',
-      city_district: 'Semangga',
-      county: 'Merauke Regency',
+      road: 'Jalan Sumatra',
+      village: 'Seringgu Jaya',
+      city: 'Merauke',
+      county: 'Semangga',
       state: 'Papua Selatan',
-      postcode: '99613',
+      postcode: '99614',
       country: 'Indonesia',
     },
   }), { status: 200, headers: { 'Content-Type': 'application/json' } });
@@ -147,10 +147,10 @@ test('Nominatim formats Indonesian administrative levels and omits the country',
       'https://estimator.example',
       { minimumIntervalMs: 0 },
     );
-    const result = await provider.reverse({ lat: -8.49176, lng: 140.38665 });
+    const result = await provider.reverse({ lat: -8.48961, lng: 140.39032 });
     assert.equal(
       result?.address,
-      'Jl. Nusa Barong, Merauke, Distrik Semangga, Kabupaten Merauke, Papua Selatan 99613',
+      'Jalan Sumatra, Seringgu Jaya, Distrik Merauke, Kabupaten Merauke, Papua Selatan 99614',
     );
     assert.doesNotMatch(result?.address || '', /Indonesia/i);
   } finally { globalThis.fetch = originalFetch; }

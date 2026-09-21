@@ -202,6 +202,15 @@ export function adminRoutes(
     } catch (error) { next(error); }
   });
 
+  router.delete('/admin/places/:id', csrf, async (req, res, next) => {
+    try {
+      const id = String(req.params.id);
+      if (!uuidPattern.test(id)) throw new ApiError(400, 'INVALID_PLACE_ID', 'ID tempat tidak valid.');
+      await repository!.deleteInactive(id);
+      res.json({ success: true, data: null });
+    } catch (error) { next(error); }
+  });
+
   router.post('/admin/places/:id/enrich-address', csrf, async (req, res, next) => {
     try {
       const id = String(req.params.id);

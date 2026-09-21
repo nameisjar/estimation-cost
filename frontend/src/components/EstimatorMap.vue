@@ -451,6 +451,7 @@ watch(() => props.estimate, estimate => {
 
 onMounted(() => {
   map = L.map(container.value!, { zoomControl: false, scrollWheelZoom: false }).setView([-8.4932, 140.4018], 14);
+  map.attributionControl.setPrefix(false);
   map.createPane('selectionHighlights');
   const highlightPane = map.getPane('selectionHighlights');
   if (highlightPane) {
@@ -459,7 +460,7 @@ onMounted(() => {
   }
   locationHighlightLayer = L.layerGroup().addTo(map);
   surveyPlaceLayer = L.layerGroup().addTo(map);
-  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap</a> contributors' }).addTo(map).on('tileerror', () => { showNotice('Sebagian peta belum dimuat. Periksa koneksi internet Anda.'); });
+  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap</a>' }).addTo(map).on('tileerror', () => { showNotice('Sebagian peta belum dimuat. Periksa koneksi internet Anda.'); });
   L.control.zoom({ position: 'bottomright' }).addTo(map);
   map.on('movestart', () => {
     if (centerPicking.value && props.selection) {
