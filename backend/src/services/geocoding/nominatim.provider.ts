@@ -1,5 +1,5 @@
 import { ApiError } from '../../errors.js';
-import type { GeocodedPlace, GeocodingProvider, LocationPoint, ServiceLimits } from '../../types/index.js';
+import type { GeocodedPlace, GeocodingProvider, LocationPoint, PlaceAreaGeometry, ServiceLimits } from '../../types/index.js';
 import { directDistanceKm } from '../service-area/service-area.service.js';
 
 type NominatimPlace = {
@@ -10,6 +10,7 @@ type NominatimPlace = {
   type?: string;
   namedetails?: Record<string, string>;
   address?: Record<string, string>;
+  geojson?: { type?: string; coordinates?: unknown };
 };
 
 type CacheEntry<T> = { expiresAt: number; value: T };
@@ -19,6 +20,98 @@ type NominatimOptions = {
   serviceLimits?: ServiceLimits;
 };
 type Bounds = { left: number; top: number; right: number; bottom: number };
+
+const roadTypes = new Set([
+  'road', 'motorway', 'trunk', 'primary', 'secondary', 'tertiary',
+  'motorway_link', 'trunk_link', 'primary_link', 'secondary_link', 'tertiary_link',
+  'unclassified', 'residential', 'living_street', 'service', 'pedestrian',
+  'track', 'bus_guideway', 'escape', 'raceway', 'footway', 'bridleway',
+  'steps', 'corridor', 'path', 'cycleway',
+]);
+
+const administrativeAddressParts = [
+  'city', 'town', 'village', 'municipality', 'county', 'state', 'region', 'city_district', 'district',
+  'suburb', 'neighbourhood', 'quarter', 'hamlet', 'postcode', 'country',
+] as const;
+
+function cleanAddressPart(value?: string): string {
+  return (value || '').trim().replace(/\s+/g, ' ');
+}
+
+function districtName(value?: string): string {
+  const name = cleanAddressPart(value);
+  if (!name) return '';
+  if (/^(distrik|kecamatan)\b/i.test(name)) return name;
+  return `Distrik ${name}`;
+}
+
+function countyName(value?: string): string {
+  const name = cleanAddressPart(value);
+  if (!name) return '';
+  if (/^(kabupaten|kab\.?|kota)\b/i.test(name)) return name;
+  const regency = name.match(/^(.+?)\s+regency$/i);
+  return regency ? `Kabupaten ${regency[1]}` : `Kabupaten ${name}`;
+}
+
+function administrativeBase(value: string): string {
+  return value
+    .toLocaleLowerCase('id-ID')
+    .replace(/^(kabupaten|kab\.?|kota|regency)\s+/i, '')
+    .replace(/\s+regency$/i, '')
+    .trim();
+}
+
+function pushUnique(parts: string[], value?: string): void {
+  const cleaned = cleanAddressPart(value);
+  if (!cleaned) return;
+  const key = cleaned.toLocaleLowerCase('id-ID');
+  if (!parts.some(part => part.toLocaleLowerCase('id-ID') === key)) parts.push(cleaned);
+}
+
+function structuredAddress(address?: Record<string, string>): string {
+  if (!address) return '';
+  const parts: string[] = [];
+  const road = cleanAddressPart(address.road || address.pedestrian || address.footway || address.path);
+  const houseNumber = cleanAddressPart(address.house_number);
+  pushUnique(parts, houseNumber && road && !road.includes(houseNumber) ? `${road} ${houseNumber}` : road || houseNumber);
+  pushUnique(parts, address.neighbourhood);
+  pushUnique(parts, address.quarter);
+  pushUnique(parts, address.suburb);
+  pushUnique(parts, address.hamlet);
+  pushUnique(parts, address.village);
+  pushUnique(parts, address.town);
+  const district = districtName(address.city_district || address.district);
+  pushUnique(parts, district);
+  const city = cleanAddressPart(address.city);
+  const county = countyName(address.county || address.municipality);
+  if (
+    (!district || administrativeBase(city) !== administrativeBase(district))
+    && (!county || administrativeBase(city) !== administrativeBase(county))
+  ) pushUnique(parts, city);
+  pushUnique(parts, county);
+  const province = cleanAddressPart(address.state || address.region);
+  const postcode = cleanAddressPart(address.postcode);
+  pushUnique(parts, province && postcode ? `${province} ${postcode}` : province || postcode);
+  return parts.join(', ');
+}
+
+function fallbackDisplayAddress(displayName: string, featureName: string, country?: string): string {
+  const parts = displayName.split(',').map(part => part.trim()).filter(Boolean);
+  if (parts[0]?.localeCompare(featureName, undefined, { sensitivity: 'accent' }) === 0) parts.shift();
+  const countryNames = new Set(['indonesia', cleanAddressPart(country).toLocaleLowerCase('id-ID')].filter(Boolean));
+  return parts
+    .filter(part => !countryNames.has(part.toLocaleLowerCase('id-ID')))
+    .filter((part, index, values) => values.findIndex(value => value.localeCompare(part, undefined, { sensitivity: 'accent' }) === 0) === index)
+    .join(', ');
+}
+
+function sameName(first: string, second?: string): boolean {
+  return !!second && first.localeCompare(second.trim(), undefined, { sensitivity: 'accent' }) === 0;
+}
+
+function isAdministrativeName(name: string, address?: Record<string, string>): boolean {
+  return administrativeAddressParts.some(part => sameName(name, address?.[part]));
+}
 
 function boundsAround(point: LocationPoint, radiusKm: number): Bounds {
   const latitudeDelta = radiusKm / 111.32;
@@ -47,16 +140,78 @@ function formatBounds(bounds: Bounds): string {
     .join(',');
 }
 
+function normalizeRing(value: unknown, coordinateCount: { value: number }): [number, number][] | null {
+  if (!Array.isArray(value) || value.length < 4) return null;
+  const ring: [number, number][] = [];
+  for (const position of value) {
+    if (!Array.isArray(position) || position.length < 2) return null;
+    const lng = Number(position[0]);
+    const lat = Number(position[1]);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) return null;
+    coordinateCount.value++;
+    if (coordinateCount.value > 4_000) return null;
+    ring.push([lng, lat]);
+  }
+  return ring;
+}
+
+function normalizePolygon(value: unknown, coordinateCount: { value: number }): [number, number][][] | null {
+  if (!Array.isArray(value) || !value.length) return null;
+  const polygon: [number, number][][] = [];
+  for (const ringValue of value) {
+    const ring = normalizeRing(ringValue, coordinateCount);
+    if (!ring) return null;
+    polygon.push(ring);
+  }
+  return polygon;
+}
+
+function normalizeAreaGeometry(value: NominatimPlace['geojson']): PlaceAreaGeometry | undefined {
+  if (!value?.coordinates) return undefined;
+  const coordinateCount = { value: 0 };
+  if (value.type === 'Polygon') {
+    const coordinates = normalizePolygon(value.coordinates, coordinateCount);
+    return coordinates ? { type: 'Polygon', coordinates } : undefined;
+  }
+  if (value.type === 'MultiPolygon' && Array.isArray(value.coordinates)) {
+    const coordinates: [number, number][][][] = [];
+    for (const polygonValue of value.coordinates) {
+      const polygon = normalizePolygon(polygonValue, coordinateCount);
+      if (!polygon) return undefined;
+      coordinates.push(polygon);
+    }
+    return coordinates.length ? { type: 'MultiPolygon', coordinates } : undefined;
+  }
+  return undefined;
+}
+
 function normalizePlace(place: NominatimPlace): GeocodedPlace | null {
   const lat = Number(place.lat);
   const lng = Number(place.lon);
   if (!Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) return null;
   const displayName = (place.display_name || '').trim();
   const addressName = place.address?.amenity || place.address?.shop || place.address?.tourism || place.address?.building;
-  const name = (place.name || place.namedetails?.name || addressName || displayName.split(',')[0] || 'Lokasi dipilih').trim();
-  const parts = displayName.split(',').map(part => part.trim()).filter(Boolean);
-  if (parts[0]?.localeCompare(name, undefined, { sensitivity: 'accent' }) === 0) parts.shift();
-  return { name, address: parts.join(', ') || displayName || `${lat.toFixed(6)}, ${lng.toFixed(6)}`, lat, lng, source: 'openstreetmap', ...(place.type ? { type: place.type } : {}) };
+  const featureName = (place.name || place.namedetails?.name || addressName || displayName.split(',')[0] || '').trim();
+  const roadName = (place.address?.road || place.address?.pedestrian || place.address?.footway || place.address?.path || '').trim();
+  const sourceType = place.type?.toLocaleLowerCase('id') || '';
+  const useRoadName = !!roadName && (
+    !featureName || roadTypes.has(sourceType) || isAdministrativeName(featureName, place.address)
+  );
+  const name = (useRoadName ? roadName : featureName) || 'Lokasi dipilih';
+  const normalizedType = useRoadName && !roadTypes.has(sourceType) ? 'road' : place.type;
+  const address = structuredAddress(place.address)
+    || fallbackDisplayAddress(displayName, name, place.address?.country)
+    || `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+  const geometry = normalizeAreaGeometry(place.geojson);
+  return {
+    name,
+    address,
+    lat,
+    lng,
+    source: 'openstreetmap',
+    ...(normalizedType ? { type: normalizedType } : {}),
+    ...(geometry ? { geometry } : {}),
+  };
 }
 
 export class NominatimProvider implements GeocodingProvider {
@@ -161,11 +316,16 @@ export class NominatimProvider implements GeocodingProvider {
     } finally { release(); }
   }
 
-  async reverse(point: LocationPoint): Promise<GeocodedPlace | null> {
-    const key = `reverse:${point.lat.toFixed(5)},${point.lng.toFixed(5)}`;
+  async reverse(point: LocationPoint, options: { includeGeometry?: boolean } = {}): Promise<GeocodedPlace | null> {
+    const geometryKey = options.includeGeometry ? ':geometry' : '';
+    const key = `reverse${geometryKey}:${point.lat.toFixed(5)},${point.lng.toFixed(5)}`;
     const cached = this.cached<GeocodedPlace | null>(key);
     if (cached !== undefined) return cached;
     const params = new URLSearchParams({ format: 'jsonv2', lat: String(point.lat), lon: String(point.lng), addressdetails: '1', namedetails: '1', zoom: '18' });
+    if (options.includeGeometry) {
+      params.set('polygon_geojson', '1');
+      params.set('polygon_threshold', '0.00001');
+    }
     const result = normalizePlace(await this.request(`/reverse?${params}`) as NominatimPlace);
     return this.remember(key, result, 24 * 60 * 60 * 1000);
   }

@@ -31,6 +31,11 @@ jobs:
       - name: Install frontend and backend
         run: npm run install:apps
 
+      - name: Validate self-hosted deployment files
+        run: |
+          sh -n deploy/osrm/prepare.sh
+          docker compose -f deploy/osrm/compose.yaml config --quiet
+
       - name: Typecheck
         run: npm run typecheck
 

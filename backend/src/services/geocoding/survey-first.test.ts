@@ -36,3 +36,19 @@ test('Nominatim fallback is used when survey data has no match', async () => {
   assert.deepEqual(await provider.search('hasil', point), [fallbackPlace]);
   assert.deepEqual(await provider.reverse(point), fallbackPlace);
 });
+
+test('confirmed reverse lookup enriches a surveyed place with an OSM building polygon', async () => {
+  const geometry = {
+    type: 'Polygon' as const,
+    coordinates: [[[140.4017, -8.4933], [140.4019, -8.4933], [140.4019, -8.4931], [140.4017, -8.4933]]] as [number, number][][],
+  };
+  const fallback: GeocodingProvider = {
+    async search() { return []; },
+    async reverse(_point, options) {
+      assert.equal(options?.includeGeometry, true);
+      return { ...point, name: 'Bangunan OSM', address: 'Merauke', source: 'openstreetmap', geometry };
+    },
+  };
+  const provider = new SurveyFirstGeocodingProvider(repository({ nearest: localPlace }), fallback);
+  assert.deepEqual(await provider.reverse(point, { includeGeometry: true }), { ...localPlace, geometry });
+});

@@ -1,65 +1,10 @@
 import 'dotenv/config';
-import { createReadStream } from 'node:fs';
+import { readFile } from 'node:fs/promises';
 import path from 'node:path';
-import { parse } from 'csv-parse';
 import { databasePool } from '../database.js';
 import { config } from '../config.js';
-import { PostgisPlaceRepository, type SurveyPlaceInput } from '../services/places/postgis-place.repository.js';
-import { normalizePlaceCategory, optionalNumber, requiredPlaceCoordinates } from './place-import-utils.js';
-
-type CsvRow = Record<string, string>;
-const expectedColumns = [
-  'placeId', 'name', 'category', 'address', 'latitude', 'longitude', 'rating',
-  'reviewCount', 'phone', 'website', 'openingHours', 'googleMapsUrl',
-  'searchKeyword', 'searchArea', 'collectedAt',
-];
-
-function distanceKm(a: { lat: number; lng: number }, b: { lat: number; lng: number }): number {
-  const radians = (degrees: number) => degrees * Math.PI / 180;
-  const deltaLat = radians(b.lat - a.lat);
-  const deltaLng = radians(b.lng - a.lng);
-  const value = Math.sin(deltaLat / 2) ** 2
-    + Math.cos(radians(a.lat)) * Math.cos(radians(b.lat)) * Math.sin(deltaLng / 2) ** 2;
-  return 6371 * 2 * Math.atan2(Math.sqrt(value), Math.sqrt(1 - value));
-}
-
-function toPlace(record: CsvRow, row: number): SurveyPlaceInput {
-  const name = record.name?.trim();
-  if (!name) throw new Error(`Baris ${row}: name wajib diisi.`);
-  const { lat, lng } = requiredPlaceCoordinates(record, row);
-  const fromServiceCenter = distanceKm(
-    { lat: config.serviceLimits.centerLat, lng: config.serviceLimits.centerLng },
-    { lat, lng },
-  );
-  if (fromServiceCenter > config.serviceLimits.radiusKm) {
-    throw new Error(`Baris ${row}: lokasi berada ${fromServiceCenter.toFixed(1)} km dari pusat, di luar area layanan ${config.serviceLimits.radiusKm} km.`);
-  }
-
-  const rating = optionalNumber(record.rating, 'rating', row);
-  const reviewCount = optionalNumber(record.reviewCount, 'reviewCount', row);
-  if (rating !== undefined && (rating < 0 || rating > 5)) throw new Error(`Baris ${row}: rating harus 0 sampai 5.`);
-  if (reviewCount !== undefined && (!Number.isSafeInteger(reviewCount) || reviewCount < 0)) throw new Error(`Baris ${row}: reviewCount harus bilangan bulat positif.`);
-  const collectedAt = record.collectedAt?.trim() ? new Date(record.collectedAt) : undefined;
-  if (collectedAt && Number.isNaN(collectedAt.getTime())) throw new Error(`Baris ${row}: collectedAt bukan tanggal valid.`);
-
-  return {
-    externalPlaceId: record.placeId?.trim() || undefined,
-    name,
-    category: normalizePlaceCategory(record.category || '', record.searchKeyword || '', name),
-    address: record.address?.trim() || undefined,
-    lat,
-    lng,
-    rating,
-    reviewCount,
-    phone: record.phone?.trim() || undefined,
-    website: record.website?.trim() || undefined,
-    openingHours: record.openingHours?.trim() || undefined,
-    googleMapsUrl: record.googleMapsUrl?.trim() || undefined,
-    searchKeyword: record.searchKeyword?.trim() || undefined,
-    searchArea: record.searchArea?.trim() || undefined,
-    collectedAt,
-  };
-}
+import { PostgisPlaceRepository } from '../services/places/postgis-place.repository.js';
+import { parsePlaceCsv } from '../services/places/place-csv-import.service.js';
 
 async function run() {
   const input = process.argv[2];
@@ -71,31 +16,11 @@ async function run() {
     { lat: config.serviceLimits.centerLat, lng: config.serviceLimits.centerLng },
     config.serviceLimits.radiusKm,
   );
-  let inserted = 0;
-  let updated = 0;
-  let skipped = 0;
-  let rowNumber = 1;
-  const parser = createReadStream(path.resolve(input)).pipe(parse({ columns: true, bom: true, skip_empty_lines: true, trim: true }));
-
-  for await (const record of parser as AsyncIterable<CsvRow>) {
-    rowNumber++;
-    if (rowNumber === 2) {
-      const missing = expectedColumns.filter(column => !(column in record));
-      if (missing.length) throw new Error(`Kolom CSV belum lengkap: ${missing.join(', ')}`);
-    }
-    let place: SurveyPlaceInput;
-    try {
-      place = toPlace(record, rowNumber);
-    } catch (error) {
-      skipped++;
-      console.warn(`Lewati ${error instanceof Error ? error.message : `baris ${rowNumber}: data tidak valid.`}`);
-      continue;
-    }
-    const result = await repository.upsertSurveyPlace(place);
-    if (result === 'inserted') inserted++;
-    else updated++;
-  }
-  console.log(`Import selesai: ${inserted} data baru, ${updated} data diperbarui, ${skipped} data dilewati.`);
+  const parsed = parsePlaceCsv(await readFile(path.resolve(input), 'utf8'), config.serviceLimits);
+  for (const issue of parsed.issues) console.warn(`Lewati baris ${issue.row}: ${issue.message}`);
+  const result = await repository.importSurveyPlaces(parsed.records.map(record => record.place), 'upsert');
+  const skipped = parsed.totalRows - parsed.records.length + result.skipped;
+  console.log(`Import selesai: ${result.inserted} data baru, ${result.updated} data diperbarui, ${skipped} data dilewati.`);
 }
 
 run()

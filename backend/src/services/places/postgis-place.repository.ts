@@ -1,6 +1,8 @@
 import type { Pool } from 'pg';
+import type { PlaceCsvImportMode } from './place-csv-import.service.js';
 import type { GeocodedPlace, LocationPoint, MapBounds, MapPlace, PlaceRepository } from '../../types/index.js';
 import { displayPlaceAddress, isMissingAddress } from './place-address.js';
+import { classifyPlace } from './place-classification.js';
 
 type PlaceRow = {
   id: string;
@@ -8,6 +10,9 @@ type PlaceRow = {
   address: string;
   search_area: string | null;
   category: string;
+  icon_type: string;
+  icon_type_verified: boolean;
+  search_keyword: string | null;
   lat: number | string;
   lng: number | string;
   verified: boolean;
@@ -24,6 +29,7 @@ export type SurveyPlaceInput = {
   name: string;
   address?: string;
   category?: string;
+  iconType?: string;
   aliases?: string[];
   lat: number;
   lng: number;
@@ -39,11 +45,15 @@ export type SurveyPlaceInput = {
 };
 
 function asPlace(row: PlaceRow): GeocodedPlace {
+  const classification = row.icon_type_verified
+    ? { category: row.category, iconType: row.icon_type }
+    : classifyPlace(row.name, row.category, row.search_keyword || '');
   return {
     id: row.id,
     name: row.name,
     address: displayPlaceAddress(row.address, row.search_area),
-    type: row.category,
+    type: classification.category,
+    iconType: classification.iconType,
     lat: Number(row.lat),
     lng: Number(row.lng),
     source: 'antarfix',
@@ -64,6 +74,9 @@ const categoryPriority: Record<string, number> = {
   retail: 125,
   automotive: 105,
   service: 85,
+  sports: 145,
+  tourism: 135,
+  business: 95,
   other: 60,
 };
 
@@ -91,7 +104,7 @@ export class PostgisPlaceRepository implements PlaceRepository {
   async search(query: string, near?: LocationPoint, limit = 8): Promise<GeocodedPlace[]> {
     const focus = near || this.serviceCenter;
     const result = await this.pool.query<PlaceRow>(
-      `SELECT id, name, address, search_area, category, verified,
+      `SELECT id, name, address, search_area, category, icon_type, icon_type_verified, search_keyword, verified,
               ST_Y(location::geometry) AS lat,
               ST_X(location::geometry) AS lng,
               ST_Distance(location, ST_SetSRID(ST_MakePoint($3, $2), 4326)::geography) AS distance_meters
@@ -121,7 +134,7 @@ export class PostgisPlaceRepository implements PlaceRepository {
 
   async nearest(point: LocationPoint, radiusMeters = 60): Promise<GeocodedPlace | null> {
     const result = await this.pool.query<PlaceRow>(
-      `SELECT id, name, address, search_area, category, verified,
+      `SELECT id, name, address, search_area, category, icon_type, icon_type_verified, search_keyword, verified,
               ST_Y(location::geometry) AS lat,
               ST_X(location::geometry) AS lng,
               ST_Distance(location, ST_SetSRID(ST_MakePoint($2, $1), 4326)::geography) AS distance_meters
@@ -137,7 +150,7 @@ export class PostgisPlaceRepository implements PlaceRepository {
 
   async inBounds(bounds: MapBounds, zoom: number, limit = 100): Promise<MapPlace[]> {
     const result = await this.pool.query<PlaceRow>(
-      `SELECT id, name, address, search_area, category, verified, min_zoom, label_priority,
+      `SELECT id, name, address, search_area, category, icon_type, icon_type_verified, search_keyword, verified, min_zoom, label_priority,
               popularity, rating, review_count,
               ST_Y(location::geometry) AS lat,
               ST_X(location::geometry) AS lng
@@ -207,6 +220,7 @@ export class PostgisPlaceRepository implements PlaceRepository {
       placeRanking.minZoom,
       placeRanking.labelPriority,
       importedAddressSource,
+      place.iconType?.trim() || place.category?.trim() || 'other',
     ];
     if (existingRow) {
       await this.pool.query(
@@ -231,6 +245,7 @@ export class PostgisPlaceRepository implements PlaceRepository {
                   ELSE NOW()
                 END,
                 category = $4,
+                icon_type = CASE WHEN icon_type_verified THEN icon_type ELSE $21 END,
                 aliases = CASE WHEN cardinality($5::text[]) > 0 THEN $5 ELSE aliases END,
                 location = ST_SetSRID(ST_MakePoint($7, $6), 4326)::geography,
                 rating = COALESCE($8, rating),
@@ -248,7 +263,7 @@ export class PostgisPlaceRepository implements PlaceRepository {
                 source = CASE WHEN source = 'admin' THEN source ELSE 'antarfix_survey' END,
                 verified = TRUE,
                 updated_at = NOW()
-          WHERE id = $21`,
+          WHERE id = $22`,
         [...values, existingRow.id],
       );
       return 'updated';
@@ -258,15 +273,60 @@ export class PostgisPlaceRepository implements PlaceRepository {
          external_place_id, name, address, category, aliases, location,
          rating, review_count, phone, website, opening_hours, google_maps_url,
          search_keyword, search_area, collected_at, popularity, min_zoom, label_priority,
-         address_source, address_verified, address_updated_at
+         address_source, address_verified, address_updated_at, icon_type, icon_type_verified
        )
        VALUES (
          $1, $2, $3, $4, $5, ST_SetSRID(ST_MakePoint($7, $6), 4326)::geography,
          $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19,
-         $20, FALSE, CASE WHEN $20 = 'missing' THEN NULL ELSE NOW() END
+         $20, FALSE, CASE WHEN $20 = 'missing' THEN NULL ELSE NOW() END, $21, FALSE
        )`,
       values,
     );
     return 'inserted';
+  }
+
+  async classifySurveyPlace(place: SurveyPlaceInput): Promise<'inserted' | 'updated'> {
+    const result = await this.pool.query(
+      `SELECT 1
+         FROM places
+        WHERE ($1::text IS NOT NULL AND external_place_id = $1)
+           OR (
+                lower(name) = lower($2)
+                AND ST_DWithin(location, ST_SetSRID(ST_MakePoint($4, $3), 4326)::geography, 20)
+              )
+        LIMIT 1`,
+      [place.externalPlaceId || null, place.name, place.lat, place.lng],
+    );
+    return result.rowCount ? 'updated' : 'inserted';
+  }
+
+  async importSurveyPlaces(
+    places: SurveyPlaceInput[],
+    mode: PlaceCsvImportMode,
+  ): Promise<{ inserted: number; updated: number; skipped: number }> {
+    const client = await this.pool.connect();
+    const transactional = new PostgisPlaceRepository(client as unknown as Pool, this.serviceCenter, this.serviceRadiusKm);
+    let inserted = 0;
+    let updated = 0;
+    let skipped = 0;
+    try {
+      await client.query('BEGIN');
+      for (const place of places) {
+        if (mode === 'insert-only' && await transactional.classifySurveyPlace(place) === 'updated') {
+          skipped++;
+          continue;
+        }
+        const result = await transactional.upsertSurveyPlace(place);
+        if (result === 'inserted') inserted++;
+        else updated++;
+      }
+      await client.query('COMMIT');
+      return { inserted, updated, skipped };
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 }

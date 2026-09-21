@@ -6,14 +6,23 @@ export class SurveyFirstGeocodingProvider implements GeocodingProvider {
     private readonly fallback: GeocodingProvider,
   ) {}
 
-  async reverse(point: LocationPoint): Promise<GeocodedPlace | null> {
+  async reverse(point: LocationPoint, options: { includeGeometry?: boolean } = {}): Promise<GeocodedPlace | null> {
     try {
       const local = await this.places.nearest(point);
-      if (local) return local;
+      if (local && !options.includeGeometry) return local;
+      if (local) {
+        try {
+          const detail = await this.fallback.reverse(point, options);
+          return detail?.geometry ? { ...local, geometry: detail.geometry } : local;
+        } catch (error) {
+          console.error('OSM building lookup failed; using surveyed place without geometry:', error);
+          return local;
+        }
+      }
     } catch (error) {
       console.error('PostGIS reverse lookup failed; using Nominatim fallback:', error);
     }
-    return this.fallback.reverse(point);
+    return this.fallback.reverse(point, options);
   }
 
   async search(query: string, near?: LocationPoint): Promise<GeocodedPlace[]> {

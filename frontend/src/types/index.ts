@@ -1,9 +1,15 @@
 export type LocationPoint = { lat: number; lng: number };
+export type PlaceAreaGeometry =
+  | { type: 'Polygon'; coordinates: [number, number][][] }
+  | { type: 'MultiPolygon'; coordinates: [number, number][][][] };
 export type GeocodedPlace = LocationPoint & {
   id?: string;
   name: string;
   address: string;
   type?: string;
+  iconType?: string;
+  geometry?: PlaceAreaGeometry;
+  geometryKind?: 'building' | 'area';
   source?: 'antarfix' | 'openstreetmap';
   verified?: boolean;
   distanceMeters?: number;
@@ -15,6 +21,15 @@ export type MapPlace = GeocodedPlace & {
   popularity: number;
   rating?: number;
   reviewCount?: number;
+};
+export type BuildingFootprint = {
+  id: string;
+  kind: 'building' | 'area';
+  name?: string;
+  address?: string;
+  buildingType: string;
+  geometry: PlaceAreaGeometry;
+  distanceMeters: number;
 };
 export type Selection = 'pickup' | 'destination';
 export type UiState = 'idle' | 'selecting-pickup' | 'selecting-destination' | 'calculating' | 'success' | 'error';

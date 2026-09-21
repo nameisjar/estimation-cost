@@ -1,23 +1,19 @@
+import { classifyPlace } from '../services/places/place-classification.js';
+
 type CoordinateRow = {
   latitude?: string;
   longitude?: string;
   googleMapsUrl?: string;
 };
 
+export type ResolvedPlaceCoordinates = {
+  lat: number;
+  lng: number;
+  correction?: 'google-maps-url' | 'swapped';
+};
+
 export function normalizePlaceCategory(category: string, keyword: string, name: string): string {
-  const value = `${category} ${keyword} ${name}`.toLocaleLowerCase('id-ID');
-  if (/rumah sakit|puskesmas|klinik|dokter|apotek|farmasi/.test(value)) return 'medical';
-  if (/sekolah|universitas|kampus|akademi|perpustakaan|tk\b|paud\b|sd\b|smp\b|sma\b|smk\b/.test(value)) return 'education';
-  if (/masjid|mushola|gereja|pura|vihara|tempat ibadah/.test(value)) return 'worship';
-  if (/restoran|rumah makan|warung|bakso|kafe|cafe|bakery|roti|kuliner|makanan/.test(value)) return 'food';
-  if (/hotel|homestay|guest house|penginapan|resort/.test(value)) return 'lodging';
-  if (/bank|atm\b|koperasi|finance/.test(value)) return 'finance';
-  if (/bengkel|spbu|rental mobil|otomotif|dealer/.test(value)) return 'automotive';
-  if (/kantor pemerintah|kantor polisi|kantor pos|kelurahan|dinas\b|polres|polsek/.test(value)) return 'government';
-  if (/pelabuhan|terminal|bandara|ekspedisi|logistik|transport/.test(value)) return 'transport';
-  if (/pasar|toko|minimarket|supermarket|mall|butik|shop|elektronik|pakaian|bangunan/.test(value)) return 'retail';
-  if (/salon|barbershop|laundry|percetakan|fotokopi|service/.test(value)) return 'service';
-  return category.trim().toLocaleLowerCase('id-ID') || 'other';
+  return classifyPlace(name, category, keyword).category;
 }
 
 export function optionalNumber(
@@ -53,19 +49,49 @@ export function coordinatesFromMapsUrl(
   return { lat, lng };
 }
 
-export function requiredPlaceCoordinates(
+function coordinateNumber(value: string | undefined): number | undefined {
+  if (!value?.trim()) return undefined;
+  const normalized = value
+    .trim()
+    .replace(/[−–—]/g, '-')
+    .replace(',', '.');
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function validCoordinates(lat: number | undefined, lng: number | undefined): lat is number {
+  return lat !== undefined && lng !== undefined
+    && lat >= -90 && lat <= 90
+    && lng >= -180 && lng <= 180;
+}
+
+export function resolvePlaceCoordinates(
   record: CoordinateRow,
   row: number,
-): { lat: number; lng: number } {
+): ResolvedPlaceCoordinates {
+  const lat = coordinateNumber(record.latitude);
+  const lng = coordinateNumber(record.longitude);
+  if (validCoordinates(lat, lng)) return { lat, lng: lng! };
+
   const fromUrl = coordinatesFromMapsUrl(record.googleMapsUrl);
-  const lat = optionalNumber(record.latitude, 'latitude', row) ?? fromUrl?.lat;
-  const lng = optionalNumber(record.longitude, 'longitude', row) ?? fromUrl?.lng;
+  if (fromUrl && validCoordinates(fromUrl.lat, fromUrl.lng)) {
+    return { ...fromUrl, correction: 'google-maps-url' };
+  }
+
+  if (validCoordinates(lng, lat)) {
+    return { lat: lng, lng: lat!, correction: 'swapped' };
+  }
 
   if (lat === undefined || lat < -90 || lat > 90) {
     throw new Error(`Baris ${row}: latitude wajib berupa angka -90 sampai 90.`);
   }
-  if (lng === undefined || lng < -180 || lng > 180) {
-    throw new Error(`Baris ${row}: longitude wajib berupa angka -180 sampai 180.`);
-  }
+  throw new Error(`Baris ${row}: longitude wajib berupa angka -180 sampai 180.`);
+}
+
+export function requiredPlaceCoordinates(
+  record: CoordinateRow,
+  row: number,
+): { lat: number; lng: number } {
+  const { lat, lng } = resolvePlaceCoordinates(record, row);
   return { lat, lng };
 }

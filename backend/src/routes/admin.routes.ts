@@ -1,4 +1,4 @@
-import { Router, type RequestHandler } from 'express';
+import { Router, text as parseTextBody, type RequestHandler } from 'express';
 import { ApiError } from '../errors.js';
 import { config } from '../config.js';
 import { validatePoint } from '../validation.js';
@@ -6,8 +6,15 @@ import { directDistanceKm } from '../services/service-area/service-area.service.
 import { AdminAuthService } from '../services/admin/admin-auth.service.js';
 import { AdminPlaceRepository, type AdminPlaceInput } from '../services/places/admin-place.repository.js';
 import type { GeocodingProvider } from '../types/index.js';
+import { placeCategories, placeIconTypes } from '../services/places/place-classification.js';
+import {
+  PlaceCsvImportService,
+  type PlaceCsvImportMode,
+  type SurveyPlaceImportRepository,
+} from '../services/places/place-csv-import.service.js';
 
-const categories = new Set(['medical', 'education', 'worship', 'food', 'lodging', 'finance', 'automotive', 'government', 'transport', 'retail', 'service', 'other']);
+const categories = new Set<string>(placeCategories);
+const iconTypes = new Set<string>(placeIconTypes);
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function text(value: unknown, name: string, maximum: number, required = false): string {
@@ -46,6 +53,8 @@ function parsePlaceBody(body: unknown): AdminPlaceInput {
   const name = text(value.name, 'Nama tempat', 160, true);
   const category = text(value.category, 'Kategori', 40, true).toLowerCase();
   if (!categories.has(category)) throw new ApiError(400, 'INVALID_ADMIN_PLACE', 'Kategori tempat tidak dikenal.');
+  const iconType = text(value.iconType, 'Jenis ikon', 40, true).toLowerCase();
+  if (!iconTypes.has(iconType)) throw new ApiError(400, 'INVALID_ADMIN_PLACE', 'Jenis ikon tempat tidak dikenal.');
   const point = validatePoint({ lat: value.lat, lng: value.lng }, 'lokasi tempat');
   const center = { lat: config.serviceLimits.centerLat, lng: config.serviceLimits.centerLng };
   if (directDistanceKm(center, point) > config.serviceLimits.radiusKm) {
@@ -54,6 +63,7 @@ function parsePlaceBody(body: unknown): AdminPlaceInput {
   return {
     name,
     category,
+    iconType,
     address: text(value.address, 'Alamat', 500) || 'Alamat belum tersedia',
     lat: point.lat,
     lng: point.lng,
@@ -78,9 +88,13 @@ export function adminRoutes(
   repository: AdminPlaceRepository | undefined,
   auth: AdminAuthService,
   addressGeocoder: GeocodingProvider,
+  surveyImportRepository?: SurveyPlaceImportRepository,
 ) {
   const router = Router();
   const production = process.env.NODE_ENV === 'production';
+  const csvImporter = surveyImportRepository
+    ? new PlaceCsvImportService(surveyImportRepository, config.serviceLimits)
+    : undefined;
 
   const available: RequestHandler = (_req, _res, next) => {
     if (!auth.enabled) { next(new ApiError(503, 'ADMIN_NOT_CONFIGURED', 'Akun admin belum dikonfigurasi.')); return; }
@@ -145,6 +159,25 @@ export function adminRoutes(
       const page = positiveInteger(req.query.page, 1, 100_000);
       const limit = positiveInteger(req.query.limit, 20, 100);
       res.json({ success: true, data: await repository!.list(query, status, addressStatus, page, limit) });
+    } catch (error) { next(error); }
+  });
+
+  const csvBody = parseTextBody({ type: ['text/csv', 'text/plain'], limit: Number.MAX_SAFE_INTEGER });
+  const importMode = (value: unknown): PlaceCsvImportMode => value === 'insert-only' ? 'insert-only' : 'upsert';
+
+  router.post('/admin/places/import/preview', csrf, csvBody, async (req, res, next) => {
+    try {
+      if (!csvImporter) throw new ApiError(503, 'DATABASE_NOT_CONFIGURED', 'Database import belum dikonfigurasi.');
+      if (typeof req.body !== 'string') throw new ApiError(415, 'INVALID_CSV_CONTENT_TYPE', 'File harus dikirim sebagai text/csv.');
+      res.json({ success: true, data: await csvImporter.preview(req.body, importMode(req.query.mode)) });
+    } catch (error) { next(error); }
+  });
+
+  router.post('/admin/places/import/commit', csrf, csvBody, async (req, res, next) => {
+    try {
+      if (!csvImporter) throw new ApiError(503, 'DATABASE_NOT_CONFIGURED', 'Database import belum dikonfigurasi.');
+      if (typeof req.body !== 'string') throw new ApiError(415, 'INVALID_CSV_CONTENT_TYPE', 'File harus dikirim sebagai text/csv.');
+      res.json({ success: true, data: await csvImporter.commit(req.body, importMode(req.query.mode)) });
     } catch (error) { next(error); }
   });
 

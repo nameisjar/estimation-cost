@@ -21,7 +21,7 @@ test('API health, pricing authority, geometry, errors and CORS', async () => {
   const app = createApp(
     { async route(a, b, geometry) { calls++; assert.deepEqual(a, pickup); assert.deepEqual(b, destination); return { distanceKm: 5.2, durationMinutes: 12, ...(geometry ? { geometry: { type: 'LineString' as const, coordinates: [[140.4018, -8.4932], [140.4072, -8.4965]] as [number, number][] } } : {}) }; } },
     {
-      async reverse(point) { geocodingCalls++; assert.deepEqual(point, pickup); return { ...pickup, name: 'Warung Mie Ayam', address: 'Jalan Mandala, Merauke' }; },
+      async reverse(point, options) { geocodingCalls++; assert.deepEqual(point, pickup); assert.equal(options?.includeGeometry, true); return { ...pickup, name: 'Warung Mie Ayam', address: 'Jalan Mandala, Merauke' }; },
       async search(query, near) { geocodingCalls++; assert.equal(query, 'Warung Mie Ayam'); assert.deepEqual(near, pickup); return [{ ...pickup, name: query, address: 'Jalan Mandala, Merauke' }]; },
     },
   );
@@ -38,7 +38,7 @@ test('API health, pricing authority, geometry, errors and CORS', async () => {
     const malformed = await fetch(`${base}/api/estimate`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{' }); assert.equal(malformed.status, 400);
     const forbidden = await fetch(`${base}/api/estimate`, { method: 'POST', headers: { Origin: 'https://untrusted.example' } }); assert.equal(forbidden.status, 403); assert.equal(forbidden.headers.get('access-control-allow-origin'), null);
     const publicConfig = await fetch(`${base}/api/config`); assert.equal((await publicConfig.json()).data.pricing.baseFare, config.pricing.baseFare);
-    const reverse = await fetch(`${base}/api/geocode/reverse?lat=${pickup.lat}&lng=${pickup.lng}`); assert.equal((await reverse.json()).data.name, 'Warung Mie Ayam');
+    const reverse = await fetch(`${base}/api/geocode/reverse?lat=${pickup.lat}&lng=${pickup.lng}&geometry=1`); assert.equal((await reverse.json()).data.name, 'Warung Mie Ayam');
     const search = await fetch(`${base}/api/geocode/search?q=${encodeURIComponent('Warung Mie Ayam')}&lat=${pickup.lat}&lng=${pickup.lng}`); assert.equal((await search.json()).data[0].address, 'Jalan Mandala, Merauke');
     assert.equal(geocodingCalls, 2);
     for (const path of ['/api/geocode/reverse?lat=91&lng=0', '/api/geocode/search?q=ab']) {
@@ -47,18 +47,35 @@ test('API health, pricing authority, geometry, errors and CORS', async () => {
   } finally { await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve())); }
 });
 
-test('map places endpoint returns surveyed places and validates bounds', async () => {
+test('map places and local suggestions endpoints return surveyed places and validate input', async () => {
   let receivedZoom = 0;
+  let receivedBuildingPoint = { lat: 0, lng: 0 };
+  let receivedSuggestion: { query: string; near?: { lat: number; lng: number }; limit?: number } | undefined;
   const app = createApp(
     { async route() { return { distanceKm: 1, durationMinutes: 2 }; } },
     { async reverse() { return null; }, async search() { return []; } },
     {
-      async search() { return []; },
+      async search(query, near, limit) {
+        receivedSuggestion = { query, near, limit };
+        return [{ id: 'survey-1', name: 'Warung Survei', address: 'Merauke', lat: -8.49, lng: 140.4, source: 'antarfix' }];
+      },
       async nearest() { return null; },
       async inBounds(bounds, zoom) {
         assert.deepEqual(bounds, { north: -8.4, south: -8.6, east: 140.5, west: 140.3 });
         receivedZoom = zoom;
         return [{ id: 'survey-1', name: 'Warung Survei', address: 'Merauke', lat: -8.49, lng: 140.4, minZoom: 16, labelPriority: 0, popularity: 0, source: 'antarfix' }];
+      },
+    },
+    {
+      async findAt(point) {
+        receivedBuildingPoint = point;
+        return {
+          id: 'way/123',
+          kind: 'building',
+          buildingType: 'commercial',
+          distanceMeters: 0,
+          geometry: { type: 'Polygon', coordinates: [[[140.399, -8.491], [140.401, -8.491], [140.401, -8.489], [140.399, -8.491]]] },
+        };
       },
     },
   );
@@ -71,7 +88,23 @@ test('map places endpoint returns surveyed places and validates bounds', async (
     assert.equal(response.status, 200);
     assert.equal(receivedZoom, 16);
     assert.equal(body.data[0].name, 'Warung Survei');
+    const suggestions = await fetch(`${base}/api/places/suggestions?q=wa&lat=-8.49&lng=140.4`);
+    const suggestionBody = await suggestions.json();
+    assert.equal(suggestions.status, 200);
+    assert.deepEqual(receivedSuggestion, { query: 'wa', near: { lat: -8.49, lng: 140.4 }, limit: 6 });
+    assert.equal(suggestionBody.data[0].source, 'antarfix');
+    const building = await fetch(`${base}/api/buildings/at?lat=-8.49&lng=140.4`);
+    const buildingBody = await building.json();
+    assert.equal(building.status, 200);
+    assert.equal(building.headers.get('ratelimit-limit'), String(Math.max(config.rateLimit.maxRequests * 4, 120)));
+    assert.deepEqual(receivedBuildingPoint, { lat: -8.49, lng: 140.4 });
+    assert.equal(buildingBody.data.id, 'way/123');
+    assert.equal(buildingBody.data.geometry.type, 'Polygon');
     const invalid = await fetch(`${base}/api/places/map?north=-8.6&south=-8.4&east=140.5&west=140.3&zoom=16`);
     assert.equal(invalid.status, 400);
+    const invalidSuggestion = await fetch(`${base}/api/places/suggestions?q=w`);
+    assert.equal(invalidSuggestion.status, 400);
+    const invalidBuilding = await fetch(`${base}/api/buildings/at?lat=91&lng=140.4`);
+    assert.equal(invalidBuilding.status, 400);
   } finally { await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve())); }
 });

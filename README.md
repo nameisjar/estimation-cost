@@ -61,7 +61,9 @@ Perintah tersebut menjalankan backend dan frontend bersamaan dengan label log AP
 
 ## Dashboard admin
 
-Dashboard `/admin` digunakan untuk mencari, menambah, mengubah, mengaktifkan, dan menonaktifkan data tempat. Form menyediakan pemilih koordinat Leaflet; klik peta atau geser marker agar posisi tempat presisi. Jika alamat kosong, dashboard dapat mencarinya dari koordinat dan menyimpan statusnya sebagai alamat otomatis sampai diperiksa admin. Perubahan tempat aktif langsung dipakai oleh pencarian dan label peta estimator.
+Dashboard `/admin` digunakan untuk mencari, menambah, mengubah, mengaktifkan, dan menonaktifkan data tempat. Form menyediakan pemilih koordinat Leaflet; klik peta atau geser marker agar posisi tempat presisi. Jenis ikon dapat dipilih terpisah dari kategori, misalnya rumah sakit, klinik, apotek, sekolah, bank, atau toko. Pilihan yang disimpan admin tidak ditimpa oleh import CSV berikutnya. Jika alamat kosong, dashboard dapat mencarinya dari koordinat dan menyimpan statusnya sebagai alamat otomatis sampai diperiksa admin. Perubahan tempat aktif langsung dipakai oleh pencarian dan label peta estimator.
+
+Tombol **Impor CSV** tidak membatasi ukuran file atau jumlah baris. Dashboard selalu menampilkan pratinjau jumlah data baru, data yang akan diperbarui, data yang dilewati, dan kesalahan per baris sebelum admin menyimpan. Koordinat valid di luar radius layanan tetap disimpan dan ditampilkan sebagai peringatan, bukan kesalahan; pembatasan pemesanan dan estimasi tetap mengikuti area layanan. Koordinat yang jelas tertukar diperbaiki otomatis, sedangkan koordinat kosong atau tidak valid dipulihkan dari `googleMapsUrl` bila URL menyimpan pasangan koordinat yang valid. Duplikat dalam satu file digabung untuk melengkapi kolom kosong, rating, jumlah ulasan, dan alias tanpa membuat tempat ganda. Semua penyesuaian ditampilkan di pratinjau dan dapat diunduh sebagai laporan. Mode **Perbarui atau tambah** cocok untuk sinkronisasi rutin, sedangkan **Hanya data baru** tidak mengubah tempat yang sudah ada. Penyimpanan dilakukan dalam satu transaksi database sehingga kegagalan tidak meninggalkan impor setengah jadi. Waktu dan kapasitas proses tetap mengikuti RAM serta kemampuan database server.
 
 Aktifkan akun admin dengan mengisi tiga variabel berikut di `backend/.env`:
 
@@ -90,7 +92,7 @@ npm.cmd --prefix backend run places:enrich-addresses -- --limit=25
 
 Hasil otomatis disimpan di PostGIS agar tidak diminta ulang dan diberi label **Alamat otomatis** di dashboard. Untuk Nominatim publik, jalankan batch kecil; script mengirim permintaan secara berurutan dan membatasi satu batch maksimal 50 data. Gunakan provider atau instance Nominatim sendiri untuk pekerjaan rutin atau jumlah besar.
 
-Import CSV bersifat non-destruktif untuk data yang sudah ada. Kolom kosong tidak menghapus alamat, telepon, website, rating, jumlah ulasan, jam operasional, kata kunci, area, atau tanggal pengumpulan yang sudah tersimpan. Alamat yang diperiksa admin serta status aktif/nonaktif dari dashboard tetap dipertahankan.
+Import CSV bersifat non-destruktif untuk data yang sudah ada. Kolom kosong tidak menghapus alamat, telepon, website, rating, jumlah ulasan, jam operasional, kata kunci, area, atau tanggal pengumpulan yang sudah tersimpan. Alamat yang diperiksa admin serta status aktif/nonaktif dari dashboard tetap dipertahankan. CLI `places:import` memakai validasi dan transaksi yang sama dengan dashboard.
 
 Pada macOS/Linux, gunakan `npm` dan salin .env.example hanya pada setup pertama. Menjalankan `npm run dev` dari folder frontend/backend secara terpisah tetap tersedia bila diperlukan.
 
@@ -105,7 +107,7 @@ File `.env` disimpan lokal di komputer/server dan diabaikan Git. Commit `.env.ex
 
 ## Data tempat hasil survei dengan PostGIS
 
-Database bersifat opsional. Tanpa `DATABASE_URL`, estimasi tetap berjalan dan pencarian memakai Nominatim/OpenStreetMap. Jika PostgreSQL + PostGIS dikonfigurasi, backend memprioritaskan data survei untuk pencarian dan reverse geocoding, lalu memakai Nominatim jika tidak ada hasil. POI disembunyikan pada zoom 14–15. Mulai zoom 16, aplikasi memilih tempat berdasarkan kategori, rating, jumlah ulasan, dan grid posisi agar icon serta label tidak bertumpuk.
+Database bersifat opsional. Tanpa `DATABASE_URL`, estimasi tetap berjalan dan pencarian penuh memakai Nominatim/OpenStreetMap. Jika PostgreSQL + PostGIS dikonfigurasi, backend memprioritaskan data survei untuk pencarian dan reverse geocoding, lalu memakai Nominatim jika tidak ada hasil. Saat pengguna mengetik minimal dua karakter, autocomplete hanya membaca database lokal AntarFix dengan jeda 300 ms; tombol Cari menjalankan pencarian penuh. POI disembunyikan pada zoom 14–15. Mulai zoom 16, aplikasi memilih tempat berdasarkan kategori, rating, jumlah ulasan, dan grid posisi agar icon serta label tidak bertumpuk.
 
 Header CSV yang didukung sama dengan data Anda:
 
@@ -123,9 +125,22 @@ cd backend
 # DATABASE_URL=postgresql://antarfix:password@127.0.0.1:5432/antarfix_estimator
 npm run db:migrate
 npm run places:import -- ./data/places.csv
+# Impor poligon bangunan pusat kota dari OpenStreetMap (contoh radius 3 km):
+npm run buildings:sync -- --radius-km=3
 ```
 
-Contoh format tersedia di `backend/data/places.example.csv`. Importer memeriksa header, koordinat, rating, jumlah ulasan, tanggal, dan radius area layanan. Jika koordinat kosong tetapi `googleMapsUrl` berisi koordinat, importer memulihkannya dari URL. `searchKeyword` dipakai untuk menentukan kategori icon ketika `category` kosong. Baris yang tetap tidak valid dilewati dengan peringatan agar baris valid tetap diproses. Proses dapat dijalankan ulang: data dengan `placeId` yang sama akan diperbarui, bukan digandakan.
+Contoh format tersedia di `backend/data/places.example.csv`. Importer memeriksa header, koordinat, rating, jumlah ulasan, tanggal, dan radius area layanan. Jika koordinat kosong tetapi `googleMapsUrl` berisi koordinat, importer memulihkannya dari URL. Kategori dan jenis ikon ditentukan dari nama tempat serta kolom `category`; `searchKeyword` hanya disimpan untuk pencarian dan tidak dipakai sebagai bukti jenis tempat. Baris yang tetap tidak valid dilewati dengan peringatan agar baris valid tetap diproses. Proses dapat dijalankan ulang: data dengan `placeId` yang sama akan diperbarui, bukan digandakan.
+
+Sorotan lokasi memakai geometri vektor PostGIS, bukan gambar tile peta. `buildings:sync` mengambil way/relation bertanda `building`, area fasilitas seperti lapangan, taman, sekolah, rumah sakit, dan pasar, alamat OSM, serta POI bernama seperti `office`, `shop`, `amenity`, `tourism`, `healthcare`, dan `craft` melalui Overpass. Bangunan disimpan di `building_footprints`, area fasilitas di `osm_areas`, dan POI sebagai titik di `osm_pois`. Nama POI hanya dipakai jika titiknya berada di dalam bidang yang dipilih. Jika bangunan dan area bertumpuk, bangunan diprioritaskan; selain itu bidang terkecil yang menutupi ujung pin dipilih. Jalankan ulang secara berkala sesuai cakupan layanan. Radius default dibatasi 3 km agar sinkronisasi publik tidak menjadi satu permintaan area yang terlalu besar; `OVERPASS_BASE_URL` dapat diarahkan ke instance milik sendiri untuk deployment produksi.
+
+Untuk menerapkan aturan ikon terbaru pada data lama yang belum diperiksa admin:
+
+```bash
+npm run places:reclassify-icons
+npm run places:audit-icons
+```
+
+Katalog ikon mencakup kesehatan, pendidikan, kuliner, penginapan, olahraga, wisata, bisnis profesional, transportasi, belanja, otomotif, pemerintahan, tempat ibadah, dan jasa. Klasifikasi memakai nama sebagai bukti utama, lalu kategori serta kata kunci survei sebagai fallback. `places:audit-icons` menampilkan distribusi ikon dan data yang masih memerlukan pemeriksaan tanpa mengubah database; `places:reclassify-icons` menyimpan hasil baru hanya untuk data yang belum dikunci admin.
 
 ## API dan pricing
 
@@ -134,7 +149,9 @@ Contoh format tersedia di `backend/data/places.example.csv`. Importer memeriksa 
 - POST /api/estimate: menerima pickup/destination dengan lat/lng berupa number; default OSRM overview=false.
 - POST /api/estimate?geometry=true: menambahkan geometri rute jalan GeoJSON dalam response untuk Leaflet.
 - GET /api/geocode/search?q=Merauke&lat=-8.4932&lng=140.4018: mencari maksimal lima tempat/alamat di sekitar fokus dalam radius lokal dan area layanan.
+- GET /api/places/suggestions?q=wa&lat=-8.4932&lng=140.4018: mengambil maksimal enam saran dari database lokal AntarFix tanpa memanggil Nominatim.
 - GET /api/geocode/reverse?lat=-8.4932&lng=140.4018: menerjemahkan koordinat menjadi nama dan alamat terdekat.
+- GET /api/buildings/at?lat=-8.4932&lng=140.4018: mencari poligon bangunan atau area fasilitas yang benar-benar menutupi titik, dengan prioritas pada bangunan.
 - GET /api/places/map?north=...&south=...&east=...&west=...&zoom=16: mengambil POI survei dalam area peta untuk label Leaflet.
 
 ```text
@@ -226,7 +243,7 @@ test -f backend/.env || cp backend/.env.example backend/.env
 test -f frontend/.env || cp frontend/.env.example frontend/.env
 ```
 
-Edit backend/.env: PORT=3000, FRONTEND_URL sesuai origin HTTPS, area/jarak layanan, rate limit, tarif/OSRM, dan WHATSAPP_NUMBER kosong atau nomor bisnis valid. Untuk satu origin via Nginx, VITE_API_BASE_URL frontend kosong. Setelah konfigurasi siap:
+Edit backend/.env: PORT=3000, FRONTEND_URL sesuai origin HTTPS, area/jarak layanan, rate limit, tarif/OSRM, dan WHATSAPP_NUMBER kosong atau nomor bisnis valid. Untuk satu origin via Nginx, VITE_API_BASE_URL frontend kosong. Pada server mandiri, arahkan `OSRM_BASE_URL` ke `http://127.0.0.1:5000`. `OSRM_FALLBACK_BASE_URL` dapat diisi endpoint demo hanya selama masa transisi lalu dikosongkan setelah routing lokal stabil. Setelah konfigurasi siap:
 
 ```bash
 npm run build
@@ -238,7 +255,20 @@ pm2 status
 
 PM2 menjalankan satu proses **antarfix-estimator-api** di background. Konfigurasi menentukan cwd backend agar dotenv membaca backend/.env, dan memakai file JavaScript hasil build. Frontend berupa file frontend/dist yang disajikan Nginx, sehingga tidak membutuhkan Vite dev server atau terminal terbuka di production.
 
-Gunakan contoh [deploy/nginx.conf.example](deploy/nginx.conf.example), sesuaikan domain/path/port serta lokasi sertifikat, lalu pasang melalui konfigurasi Nginx server Anda. Contoh mengalihkan HTTP ke HTTPS, menyediakan TLS, rate limit tambahan, compression, cache aset, dan security headers. Pastikan sertifikat sudah tersedia sebelum mengaktifkan blok port 443. Jalankan `sudo nginx -t` sebelum reload konfigurasi dan pastikan Nginx punya akses baca ke frontend/dist.
+### OSRM lokal pada CasaOS/Docker
+
+Konfigurasi siap pakai tersedia di [deploy/osrm](deploy/osrm/README.md). Letakkan ekstrak OSM wilayah layanan sebagai `deploy/osrm/data/merauke.osm.pbf`, siapkan graph, lalu hidupkan container:
+
+```bash
+chmod +x deploy/osrm/prepare.sh
+./deploy/osrm/prepare.sh
+docker compose -f deploy/osrm/compose.yaml up -d
+curl "http://127.0.0.1:5000/route/v1/driving/140.4018,-8.4932;140.4072,-8.4965?overview=false"
+```
+
+Container hanya membuka OSRM pada loopback laptop. Jangan meneruskan port 5000 melalui router, Cloudflare Tunnel, atau reverse proxy publik. Backend otomatis mencoba `OSRM_FALLBACK_BASE_URL` bila primary gagal dan fallback dikonfigurasi; koordinat tidak dicatat pada log fallback.
+
+Gunakan contoh [deploy/nginx.conf.example](deploy/nginx.conf.example), sesuaikan domain/path/port serta lokasi sertifikat, lalu pasang melalui konfigurasi Nginx server Anda. Contoh mengalihkan HTTP ke HTTPS, menyediakan TLS, compression, cache panjang untuk aset hasil build, rate limit umum, serta limit lebih longgar untuk pembacaan peta. Pastikan sertifikat sudah tersedia sebelum mengaktifkan blok port 443. Jalankan `sudo nginx -t` sebelum reload konfigurasi dan pastikan Nginx punya akses baca ke frontend/dist.
 
 Untuk auto-start PM2 setelah reboot, jalankan `pm2 startup`, ikuti perintah yang dicetak untuk user deployment, kemudian `pm2 save`. Detail: [PM2 startup](https://pm2.keymetrics.io/docs/usage/startup/).
 
@@ -252,7 +282,7 @@ Contoh frontend `https://estimator.antarfix.id`, backend `https://api-estimator.
 - Set FRONTEND_URL backend ke `https://estimator.antarfix.id`, lalu restart/redeploy.
 - Frontend menjadi website statis, backend di host Node.js; keduanya tetap mengambil source dari repo yang sama.
 
-Domain dan server block di atas merupakan contoh, belum dipasang atau dideploy. PM2/Nginx belum dijalankan pada server Ubuntu Anda. Vite development proxy tidak tersedia pada hosting statis/preview production; gunakan reverse proxy atau VITE_API_BASE_URL sesuai pilihan deployment.
+Domain dan server block di atas merupakan contoh repository; pemasangan aktual tetap dilakukan pada laptop server. Vite development proxy tidak tersedia pada hosting statis/preview production; gunakan reverse proxy atau VITE_API_BASE_URL sesuai pilihan deployment. Dashboard CasaOS, PostgreSQL, port backend 3000, dan OSRM 5000 tidak boleh dipublikasikan langsung. Publikasikan hanya Nginx melalui HTTPS atau Cloudflare Tunnel.
 
 ## Dokumentasi dan batasan
 
@@ -260,7 +290,7 @@ Domain dan server block di atas merupakan contoh, belum dipasang atau dideploy. 
 - [Backend: routing, API, pricing, pengujian](backend/README.md)
 - [Laporan penerapan arsitektur satu repository](IMPLEMENTATION_REPORT.md)
 
-Peta Leaflet dan pencarian Nominatim memakai data OpenStreetMap dengan attribution © OpenStreetMap contributors. Search dijalankan saat tombol Cari ditekan, bukan autocomplete. Backend membatasi request Nominatim publik menjadi satu per detik dan memakai cache memori. Isi `GEOCODING_USER_AGENT` dengan identitas deployment yang nyata. Ikuti [OSM Tile Usage Policy](https://operations.osmfoundation.org/policies/tiles/) dan [Nominatim Usage Policy](https://operations.osmfoundation.org/policies/nominatim/). Public OSRM/Nominatim untuk development atau trafik ringan tidak otomatis cocok untuk production berskala besar; gunakan provider/instance sesuai kapasitas.
+Peta Leaflet dan pencarian penuh Nominatim memakai data OpenStreetMap dengan attribution © OpenStreetMap contributors. Autocomplete hanya memakai PostGIS lokal; Nominatim baru dipanggil ketika pengguna menekan tombol Cari dan data lokal belum menemukan hasil. Backend membatasi request Nominatim publik menjadi satu per detik dan memakai cache memori. Isi `GEOCODING_USER_AGENT` dengan identitas deployment yang nyata. Ikuti [OSM Tile Usage Policy](https://operations.osmfoundation.org/policies/tiles/) dan [Nominatim Usage Policy](https://operations.osmfoundation.org/policies/nominatim/). Public OSRM/Nominatim untuk development atau trafik ringan tidak otomatis cocok untuk production berskala besar; gunakan provider/instance sesuai kapasitas.
 
 API memiliki rate limit in-memory per alamat IP dan contoh Nginx menambahkan lapisan pembatas kedua. Halaman [privasi lokasi](frontend/public/privacy.html) menjelaskan pemakaian koordinat dan layanan pihak ketiga. Workflow `.github/workflows/ci.yml` menjalankan typecheck, lint, test, dan build pada setiap push serta pull request.
 

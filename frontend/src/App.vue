@@ -18,12 +18,16 @@ import {
   X,
 } from "lucide-vue-next";
 import EstimatorMap from "./components/EstimatorMap.vue";
+import LocationMarkerGlyph from "./components/LocationMarkerGlyph.vue";
+import PlaceIconGlyph from "./components/PlaceIconGlyph.vue";
 import {
   estimateCost,
+  getBuildingAt,
   getConfig,
   isValidPoint,
   reverseGeocode,
   searchPlaces,
+  suggestPlaces,
 } from "./services/estimate.service";
 import {
   formatCurrency,
@@ -32,7 +36,13 @@ import {
   formatPoint,
   whatsappUrl,
 } from "./utils/format";
-import { locationWithFallback } from "./utils/location-label";
+import {
+  locationPrecision,
+  locationWithFallback,
+  locationWithMapFallback,
+  preferredLocationAddress,
+  unnamedBuildingLabel,
+} from "./utils/location-label";
 import type {
   LocationPoint,
   Selection,
@@ -40,6 +50,7 @@ import type {
   Estimate,
   AppConfig,
   GeocodedPlace,
+  BuildingFootprint,
 } from "./types";
 
 const pickup = ref<LocationPoint | null>(null);
@@ -76,11 +87,20 @@ const searchQuery = ref("");
 const searchResults = ref<GeocodedPlace[]>([]);
 const searchBusy = ref(false);
 const searchError = ref("");
+const searchResultMode = ref<"suggestions" | "full">("suggestions");
+const activeSuggestion = ref(-1);
+const suggestionSettled = ref(false);
 const showPlacePicker = ref(false);
 const locatingInitialPickup = ref(false);
 const placePicker = ref<HTMLElement>();
+const searchInput = ref<HTMLInputElement>();
+const recentLocations = ref<GeocodedPlace[]>([]);
 const geocodeVersion: Record<Selection, number> = { pickup: 0, destination: 0 };
+const recentLocationsKey = "antarfix:recent-locations:v1";
 let searchVersion = 0;
+let suggestionTimer: ReturnType<typeof setTimeout> | undefined;
+let searchController: AbortController | undefined;
+const suggestionCache = new Map<string, GeocodedPlace[]>();
 let centerPreviewVersion = 0;
 let centerPreviewTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -92,19 +112,22 @@ const selectedCount = computed(
 const showMobileAction = computed(
   () => !estimate.value && !manualOpen.value && !showPlacePicker.value
 );
+const showRecentLocations = computed(
+  () => !searchQuery.value.trim() && !searchBusy.value && recentLocations.value.length > 0
+);
 const actionLabel = computed(() =>
   busy.value
     ? "Menghitung rute..."
     : locatingInitialPickup.value
     ? "Mencari lokasi Anda..."
     : selection.value === "pickup"
-    ? "Gunakan titik jemput ini"
+    ? "Gunakan lokasi jemput ini"
     : selection.value === "destination"
-    ? "Gunakan titik tujuan ini"
+    ? "Gunakan tujuan ini"
     : !pickup.value
-    ? "Pilih titik jemput"
+    ? "Pilih lokasi jemput"
     : !destination.value
-    ? "Pilih titik tujuan"
+    ? "Pilih tujuan"
     : error.value
     ? "Hitung ulang estimasi"
     : "Hitung estimasi"
@@ -113,9 +136,9 @@ const mobileActionHint = computed(() =>
   busy.value
     ? "Perjalananmu sedang dihitung"
     : selection.value === "pickup"
-    ? "Geser peta sampai pin A tepat"
+    ? "Geser peta sampai pin jemput tepat"
     : selection.value === "destination"
-    ? "Geser peta sampai pin B tepat"
+    ? "Geser peta sampai pin tujuan tepat"
     : ready.value
     ? "Siap cek biaya pengiriman?"
     : "Pilih lokasi, lalu cek biayanya"
@@ -235,7 +258,94 @@ async function initializeApp() {
   }
 }
 
-onMounted(initializeApp);
+function isStoredPlace(value: unknown): value is GeocodedPlace {
+  if (!value || typeof value !== "object") return false;
+  const place = value as Partial<GeocodedPlace>;
+  return typeof place.name === "string"
+    && typeof place.address === "string"
+    && typeof place.lat === "number"
+    && Number.isFinite(place.lat)
+    && typeof place.lng === "number"
+    && Number.isFinite(place.lng)
+    && isValidPoint({ lat: place.lat, lng: place.lng });
+}
+
+function loadRecentLocations() {
+  try {
+    const stored = JSON.parse(localStorage.getItem(recentLocationsKey) || "[]");
+    recentLocations.value = Array.isArray(stored) ? stored.filter(isStoredPlace).slice(0, 5) : [];
+  } catch {
+    recentLocations.value = [];
+  }
+}
+
+function persistRecentLocations() {
+  try {
+    localStorage.setItem(recentLocationsKey, JSON.stringify(recentLocations.value));
+  } catch {
+    // The estimator keeps working when private browsing blocks local storage.
+  }
+}
+
+function rememberRecentLocation(place: GeocodedPlace) {
+  if (locationPrecision(place) === "approximate") return;
+  const storedPlace: GeocodedPlace = {
+    id: place.id,
+    lat: place.lat,
+    lng: place.lng,
+    name: place.name,
+    address: place.address,
+    type: place.type,
+    iconType: place.iconType,
+    source: place.source,
+    verified: place.verified,
+  };
+  const sameLocation = (item: GeocodedPlace) =>
+    Math.abs(item.lat - storedPlace.lat) < 0.00001
+    && Math.abs(item.lng - storedPlace.lng) < 0.00001;
+  recentLocations.value = [
+    storedPlace,
+    ...recentLocations.value.filter(item => !sameLocation(item)),
+  ].slice(0, 5);
+  persistRecentLocations();
+}
+
+function clearRecentLocations() {
+  recentLocations.value = [];
+  try {
+    localStorage.removeItem(recentLocationsKey);
+  } catch {
+    // Nothing else is required when local storage is unavailable.
+  }
+}
+
+function locationStatus(target: Selection) {
+  const point = target === "pickup" ? pickup.value : destination.value;
+  const place = target === "pickup" ? pickupPlace.value : destinationPlace.value;
+  if (!point) return null;
+  if (resolvingPlace.value[target]) {
+    return { kind: "loading", text: "Memeriksa nama dan ketepatan lokasi…" };
+  }
+  const precision = locationPrecision(place);
+  if (precision === "road") {
+    return {
+      kind: "warning",
+      text: "Lokasi masih berupa area jalan. Geser pin ke bangunan yang tepat.",
+    };
+  }
+  if (precision === "approximate") {
+    return {
+      kind: "warning",
+      text: "Lokasi belum spesifik. Geser pin ke bangunan yang tepat.",
+    };
+  }
+  return null;
+}
+
+onMounted(() => {
+  loadRecentLocations();
+  void initializeApp();
+});
 
 function startSelection(target: Selection, revealMap = true) {
   if (busy.value) return;
@@ -260,16 +370,30 @@ async function openPlacePicker(target: Selection) {
   searchResults.value = [];
   searchError.value = "";
   searchBusy.value = false;
+  searchResultMode.value = "suggestions";
+  activeSuggestion.value = -1;
+  suggestionSettled.value = false;
+  suggestionCache.clear();
   manualLat.value = "";
   manualLng.value = "";
   manualError.value = "";
   showPlacePicker.value = true;
   await nextTick();
-  placePicker.value?.focus({ preventScroll: true });
+  searchInput.value?.focus({ preventScroll: true });
+}
+
+function cancelPlaceSearch() {
+  searchVersion++;
+  if (suggestionTimer) clearTimeout(suggestionTimer);
+  suggestionTimer = undefined;
+  searchController?.abort();
+  searchController = undefined;
+  searchBusy.value = false;
+  activeSuggestion.value = -1;
 }
 
 function closePlacePicker() {
-  searchVersion++;
+  cancelPlaceSearch();
   showPlacePicker.value = false;
   searchResults.value = [];
   searchError.value = "";
@@ -290,13 +414,66 @@ function setPlace(target: Selection, place: GeocodedPlace | null) {
   const normalizedPlace = locationWithFallback(place, target);
   if (target === "pickup") pickupPlace.value = normalizedPlace;
   else destinationPlace.value = normalizedPlace;
+  if (normalizedPlace) rememberRecentLocation(normalizedPlace);
 }
 
-async function resolvePlace(point: LocationPoint, target: Selection, version: number) {
+function placeWithBuilding(
+  point: LocationPoint,
+  target: Selection,
+  place: GeocodedPlace | null,
+  building: BuildingFootprint | null,
+  preferPlaceName = false
+): GeocodedPlace | null {
+  const normalized = preferPlaceName
+    ? locationWithFallback(place, target)
+    : locationWithMapFallback(point, place, target);
+  if (!building) return normalized;
+  const buildingName = building.name?.trim();
+  const address = preferredLocationAddress(
+    building.address,
+    normalized?.address,
+    formatPoint(point),
+  );
+  return {
+    ...(normalized || {
+      ...point,
+      address: formatPoint(point),
+    }),
+    name:
+      (preferPlaceName ? normalized?.name : "") ||
+      buildingName ||
+      unnamedBuildingLabel(address),
+    address,
+    geometry: building.geometry,
+    geometryKind: building.kind,
+  };
+}
+
+async function resolvePlace(
+  point: LocationPoint,
+  target: Selection,
+  version: number,
+  preserveExistingPlace = false,
+) {
   resolvingPlace.value[target] = true;
   try {
-    const place = await reverseGeocode(point);
-    if (geocodeVersion[target] === version) setPlace(target, place);
+    const [placeResult, buildingResult] = await Promise.allSettled([
+      reverseGeocode(point),
+      getBuildingAt(point),
+    ]);
+    if (geocodeVersion[target] === version) {
+      const existing = target === "pickup" ? pickupPlace.value : destinationPlace.value;
+      const place = placeResult.status === "fulfilled" ? placeResult.value : null;
+      const building = buildingResult.status === "fulfilled" ? buildingResult.value : null;
+      const resolvedPlace = preserveExistingPlace && existing ? existing : place || existing;
+      setPlace(target, placeWithBuilding(
+        point,
+        target,
+        resolvedPlace,
+        building,
+        preserveExistingPlace && !!existing,
+      ));
+    }
   } catch {
     if (geocodeVersion[target] === version) setPlace(target, null);
   } finally {
@@ -320,6 +497,7 @@ function startCenterPreview(target: Selection) {
   if (centerPreviewTimer) clearTimeout(centerPreviewTimer);
   centerPreviewTimer = undefined;
   centerPreviewTarget.value = target;
+  centerPreviewPoint.value = null;
   centerPreviewPlace.value = null;
   resolvingCenterPreview.value = true;
 }
@@ -332,16 +510,34 @@ function previewCenter(point: LocationPoint, target: Selection) {
   centerPreviewPoint.value = point;
   centerPreviewPlace.value = null;
   resolvingCenterPreview.value = true;
-  centerPreviewTimer = setTimeout(async () => {
-    try {
-      const place = await reverseGeocode(point);
-      if (centerPreviewVersion === version && selection.value === target)
-        centerPreviewPlace.value = locationWithFallback(place, target);
-    } catch {
-      if (centerPreviewVersion === version) centerPreviewPlace.value = null;
-    } finally {
-      if (centerPreviewVersion === version) resolvingCenterPreview.value = false;
-    }
+  let building: BuildingFootprint | null = null;
+  let place: GeocodedPlace | null = null;
+  let buildingSettled = false;
+  let placeSettled = false;
+  const isCurrent = () => centerPreviewVersion === version && selection.value === target;
+  const applyPreview = () => {
+    if (!isCurrent()) return;
+    const resolved = placeWithBuilding(point, target, place, building);
+    if (resolved || (buildingSettled && placeSettled)) centerPreviewPlace.value = resolved;
+    resolvingCenterPreview.value = !(buildingSettled && placeSettled);
+  };
+
+  void getBuildingAt(point)
+    .then(result => { building = result; })
+    .catch(() => { building = null; })
+    .finally(() => {
+      buildingSettled = true;
+      applyPreview();
+    });
+
+  centerPreviewTimer = setTimeout(() => {
+    void reverseGeocode(point)
+      .then(result => { place = result; })
+      .catch(() => { place = null; })
+      .finally(() => {
+        placeSettled = true;
+        applyPreview();
+      });
   }, 450);
 }
 
@@ -361,12 +557,12 @@ function choose(point: LocationPoint, target: Selection, knownPlace?: GeocodedPl
   const version = ++geocodeVersion[target];
   setPlace(target, selectedPlace || null);
   resolvingPlace.value[target] = false;
-  if (!selectedPlace) void resolvePlace(point, target, version);
+  if (!selectedPlace?.geometry) void resolvePlace(point, target, version, !!knownPlace);
   clearCenterPreview();
   estimate.value = null;
   error.value = "";
   manualError.value = "";
-  // Keep the map still when moving from A to B, including when dragging markers.
+  // Keep the map still when moving from pickup to destination, including marker drags.
   if (target === "pickup" && !destination.value) startSelection("destination", false);
   else if (target === "destination" && !pickup.value) startSelection("pickup", false);
   else {
@@ -375,33 +571,161 @@ function choose(point: LocationPoint, target: Selection, knownPlace?: GeocodedPl
   }
 }
 
+function searchFocus() {
+  return searchTarget.value === "destination"
+    ? pickup.value || deviceLocation.value
+    : deviceLocation.value || pickup.value;
+}
+
+function suggestionCacheKey(query: string) {
+  const focus = searchFocus();
+  const locationKey = focus ? `${focus.lat.toFixed(3)},${focus.lng.toFixed(3)}` : "center";
+  return `${searchTarget.value}:${locationKey}:${query.toLocaleLowerCase("id")}`;
+}
+
+async function loadPlaceSuggestions(query: string) {
+  const cacheKey = suggestionCacheKey(query);
+  const cached = suggestionCache.get(cacheKey);
+  if (cached) {
+    searchResults.value = cached;
+    searchResultMode.value = "suggestions";
+    activeSuggestion.value = -1;
+    suggestionSettled.value = true;
+    return;
+  }
+  const version = ++searchVersion;
+  searchController?.abort();
+  searchController = new AbortController();
+  searchBusy.value = true;
+  searchError.value = "";
+  try {
+    const results = await suggestPlaces(query, searchFocus(), searchController.signal);
+    if (searchVersion !== version) return;
+    searchResults.value = results;
+    searchResultMode.value = "suggestions";
+    activeSuggestion.value = -1;
+    suggestionCache.set(cacheKey, results);
+    if (suggestionCache.size > 50) suggestionCache.delete(suggestionCache.keys().next().value!);
+  } catch (failure) {
+    if (searchVersion !== version || (failure instanceof Error && failure.name === "AbortError")) return;
+    searchError.value = failure instanceof Error ? failure.message : "Saran lokasi belum dapat dimuat.";
+  } finally {
+    if (searchVersion === version) {
+      searchBusy.value = false;
+      searchController = undefined;
+      suggestionSettled.value = true;
+    }
+  }
+}
+
+function queuePlaceSuggestions() {
+  if (suggestionTimer) clearTimeout(suggestionTimer);
+  suggestionTimer = undefined;
+  searchController?.abort();
+  searchController = undefined;
+  searchVersion++;
+  searchError.value = "";
+  searchResultMode.value = "suggestions";
+  suggestionSettled.value = false;
+  searchBusy.value = false;
+  activeSuggestion.value = -1;
+  const query = searchQuery.value.trim();
+  if (!showPlacePicker.value || query.length < 2) {
+    searchResults.value = [];
+    return;
+  }
+  const cached = suggestionCache.get(suggestionCacheKey(query));
+  if (cached) {
+    searchResults.value = cached;
+    suggestionSettled.value = true;
+    return;
+  }
+  searchResults.value = [];
+  suggestionTimer = setTimeout(() => {
+    suggestionTimer = undefined;
+    void loadPlaceSuggestions(query);
+  }, 300);
+}
+
 async function submitPlaceSearch() {
   const query = searchQuery.value.trim();
+  if (suggestionTimer) clearTimeout(suggestionTimer);
+  suggestionTimer = undefined;
+  searchController?.abort();
+  searchController = new AbortController();
   const version = ++searchVersion;
   searchError.value = "";
-  searchResults.value = [];
+  searchResultMode.value = "full";
+  suggestionSettled.value = false;
   if (query.length < 3) {
     searchError.value = "Masukkan minimal 3 karakter.";
+    searchController = undefined;
     return;
   }
   searchBusy.value = true;
   try {
-    const searchFocus = searchTarget.value === "destination"
-      ? pickup.value || deviceLocation.value
-      : deviceLocation.value || pickup.value;
-    const results = await searchPlaces(query, searchFocus);
+    const results = await searchPlaces(query, searchFocus(), searchController.signal);
     if (searchVersion !== version) return;
     searchResults.value = results;
+    searchResultMode.value = "full";
+    activeSuggestion.value = -1;
     if (!searchResults.value.length)
       searchError.value =
         "Tempat belum ditemukan. Coba nama atau alamat yang lebih lengkap.";
   } catch (failure) {
-    if (searchVersion !== version) return;
+    if (searchVersion !== version || (failure instanceof Error && failure.name === "AbortError")) return;
     searchError.value =
       failure instanceof Error ? failure.message : "Pencarian lokasi belum berhasil.";
   } finally {
-    if (searchVersion === version) searchBusy.value = false;
+    if (searchVersion === version) {
+      searchBusy.value = false;
+      searchController = undefined;
+    }
   }
+}
+
+function moveSuggestion(direction: 1 | -1) {
+  if (!searchResults.value.length) return;
+  activeSuggestion.value = activeSuggestion.value < 0
+    ? direction === 1 ? 0 : searchResults.value.length - 1
+    : (activeSuggestion.value + direction + searchResults.value.length) % searchResults.value.length;
+}
+
+function handleSearchKeydown(event: KeyboardEvent) {
+  if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+    event.preventDefault();
+    moveSuggestion(event.key === "ArrowDown" ? 1 : -1);
+  } else if (event.key === "Enter" && activeSuggestion.value >= 0) {
+    event.preventDefault();
+    const place = searchResults.value[activeSuggestion.value];
+    if (place) void selectSearchResult(place);
+  } else if (event.key === "Escape" && searchResults.value.length) {
+    event.stopPropagation();
+    searchResults.value = [];
+    activeSuggestion.value = -1;
+  }
+}
+
+function highlightedName(name: string) {
+  const query = searchQuery.value.trim().toLocaleLowerCase("id");
+  const normalizedName = name.toLocaleLowerCase("id");
+  const index = query ? normalizedName.indexOf(query) : -1;
+  if (index < 0) return [{ text: name, match: false }];
+  return [
+    { text: name.slice(0, index), match: false },
+    { text: name.slice(index, index + query.length), match: true },
+    { text: name.slice(index + query.length), match: false },
+  ].filter(part => part.text);
+}
+
+function suggestionDistance(place: GeocodedPlace) {
+  if (place.distanceMeters === undefined) return "";
+  const distance = place.distanceMeters < 1_000
+    ? `${Math.round(place.distanceMeters)} m`
+    : `${(place.distanceMeters / 1_000).toLocaleString("id-ID", { maximumFractionDigits: 1 })} km`;
+  if (searchTarget.value === "destination" && pickup.value) return `${distance} dari lokasi jemput`;
+  if (deviceLocation.value) return `${distance} dari lokasi Anda`;
+  return distance;
 }
 
 async function selectSearchResult(place: GeocodedPlace) {
@@ -414,6 +738,10 @@ async function selectSearchResult(place: GeocodedPlace) {
   await nextTick();
   mapComponent.value?.fitMap();
   await reveal(mapRegion.value, true);
+}
+
+async function selectRecentLocation(place: GeocodedPlace) {
+  await selectSearchResult(place);
 }
 
 function toggleManual(event: Event) {
@@ -461,6 +789,7 @@ async function swapPoints() {
 function reset() {
   if (busy.value) return;
   clearCenterPreview();
+  cancelPlaceSearch();
   pickup.value = null;
   destination.value = null;
   estimate.value = null;
@@ -524,7 +853,10 @@ function confirmMapSelection() {
   mapComponent.value?.confirmCenterSelection();
 }
 
-onBeforeUnmount(clearCenterPreview);
+onBeforeUnmount(() => {
+  clearCenterPreview();
+  cancelPlaceSearch();
+});
 </script>
 
 <template>
@@ -562,7 +894,7 @@ onBeforeUnmount(clearCenterPreview);
           <strong>Tiga langkah, satu estimasi.</strong>
           <p>
             Cari nama tempat atau pilih langsung di peta. Peta akan mencoba memakai lokasi
-            perangkat sebagai titik awal. Tekan Hitung estimasi setelah A dan B dipilih;
+            perangkat sebagai lokasi awal. Tekan Hitung estimasi setelah lokasi jemput dan tujuan dipilih;
             marker tetap bisa digeser untuk memperbaiki lokasi.
           </p>
         </div>
@@ -579,13 +911,15 @@ onBeforeUnmount(clearCenterPreview);
           >
             <div class="card-title">
               <h2 id="location-title">Mau kirim ke mana?</h2>
-              <span class="location-count">{{ selectedCount }}/2 titik</span>
+              <span class="location-count">{{ selectedCount }}/2 lokasi</span>
             </div>
             <p class="card-subtitle">Cari nama tempat atau pilih langsung dari peta.</p>
             <div class="location-fields">
               <div class="point-connector" />
               <div class="location-row">
-                <span class="point-badge point-a">A</span>
+                <span class="point-badge point-pickup" aria-hidden="true">
+                  <LocationMarkerGlyph target="pickup" :size="16" />
+                </span>
                 <div class="location-content">
                   <label for="pickup-button">Lokasi penjemputan</label>
                   <button
@@ -601,6 +935,19 @@ onBeforeUnmount(clearCenterPreview);
                       ><small>{{ pickupDisplayAddress }}</small></span
                     >
                   </button>
+                  <p
+                    v-if="locationStatus('pickup')"
+                    class="location-status"
+                    :class="`is-${locationStatus('pickup')?.kind}`"
+                    role="status"
+                  >
+                    <LoaderCircle
+                      v-if="locationStatus('pickup')?.kind === 'loading'"
+                      :size="12"
+                      class="spinner"
+                    /><Info v-else :size="12" />
+                    <span>{{ locationStatus('pickup')?.text }}</span>
+                  </p>
                 </div>
               </div>
               <div class="swap-row">
@@ -615,7 +962,9 @@ onBeforeUnmount(clearCenterPreview);
                 </button>
               </div>
               <div class="location-row">
-                <span class="point-badge point-b">B</span>
+                <span class="point-badge point-destination" aria-hidden="true">
+                  <LocationMarkerGlyph target="destination" :size="16" />
+                </span>
                 <div class="location-content">
                   <label for="destination-button">Lokasi tujuan</label>
                   <button
@@ -634,6 +983,19 @@ onBeforeUnmount(clearCenterPreview);
                       ><small>{{ destinationDisplayAddress }}</small></span
                     >
                   </button>
+                  <p
+                    v-if="locationStatus('destination')"
+                    class="location-status"
+                    :class="`is-${locationStatus('destination')?.kind}`"
+                    role="status"
+                  >
+                    <LoaderCircle
+                      v-if="locationStatus('destination')?.kind === 'loading'"
+                      :size="12"
+                      class="spinner"
+                    /><Info v-else :size="12" />
+                    <span>{{ locationStatus('destination')?.text }}</span>
+                  </p>
                 </div>
               </div>
             </div>
@@ -774,6 +1136,11 @@ onBeforeUnmount(clearCenterPreview);
             ref="mapComponent"
             :pickup="pickup"
             :destination="destination"
+            :pickup-place="pickupPlace"
+            :destination-place="destinationPlace"
+            :preview-point="centerPreviewPoint"
+            :preview-place="centerPreviewPlace"
+            :preview-target="centerPreviewTarget"
             :selection="selection"
             :estimate="estimate"
             :busy="busy"
@@ -787,7 +1154,7 @@ onBeforeUnmount(clearCenterPreview);
       </div>
 
       <div class="closing-line">
-        <Package :size="16" /><span>Dari titik A ke B, AntarFix bantu hitungkan.</span>
+        <Package :size="16" /><span>Dari lokasi jemput ke tujuan, AntarFix bantu hitungkan.</span>
       </div>
     </main>
 
@@ -816,13 +1183,14 @@ onBeforeUnmount(clearCenterPreview);
           <div>
             <span
               class="picker-badge"
-              :class="searchTarget === 'pickup' ? 'point-a' : 'point-b'"
-              >{{ searchTarget === "pickup" ? "A" : "B" }}</span
-            >
+              :class="searchTarget === 'pickup' ? 'point-pickup' : 'point-destination'"
+              aria-hidden="true"
+              ><LocationMarkerGlyph :target="searchTarget" :size="18" />
+            </span>
             <div>
               <h2 id="place-picker-title">
                 {{
-                  searchTarget === "pickup" ? "Pilih titik jemput" : "Pilih titik tujuan"
+                  searchTarget === "pickup" ? "Pilih lokasi jemput" : "Pilih tujuan"
                 }}
               </h2>
               <p>Cari nama tempat, pilih dari peta, atau masukkan koordinat.</p>
@@ -840,31 +1208,29 @@ onBeforeUnmount(clearCenterPreview);
         <form class="place-search" role="search" @submit.prevent="submitPlaceSearch">
           <label for="place-query">Cari tempat atau alamat</label>
           <div class="place-search-row">
-            <select
-              v-model="searchTarget"
-              aria-label="Gunakan hasil pencarian untuk"
-              @change="manualTarget = searchTarget"
-            >
-              <option value="pickup">A · Jemput</option>
-              <option value="destination">B · Tujuan</option>
-            </select>
             <div class="place-search-input">
               <Search :size="17" /><input
+                ref="searchInput"
                 id="place-query"
                 v-model="searchQuery"
                 type="search"
                 maxlength="120"
                 autocomplete="off"
                 placeholder="Contoh: Warung Mie Ayam"
+                role="combobox"
+                aria-autocomplete="list"
                 aria-controls="place-search-results"
                 :aria-expanded="searchResults.length > 0"
-                :disabled="searchBusy || busy"
+                :aria-activedescendant="activeSuggestion >= 0 ? `place-suggestion-${activeSuggestion}` : undefined"
+                :disabled="busy"
+                @input="queuePlaceSuggestions"
+                @keydown="handleSearchKeydown"
               />
             </div>
             <button
               type="submit"
               class="search-button"
-              :disabled="searchBusy || busy"
+              :disabled="busy || (searchBusy && searchResultMode === 'full')"
               aria-label="Cari lokasi"
             >
               <LoaderCircle v-if="searchBusy" :size="18" class="spinner" /><Search
@@ -874,43 +1240,71 @@ onBeforeUnmount(clearCenterPreview);
             </button>
           </div>
           <p v-if="searchBusy" class="search-status" role="status" aria-live="polite">
-            Mencari lokasi di sekitar area layanan…
+            {{ searchResultMode === "suggestions" ? "Mencari tempat…" : "Mencari lokasi di sekitar area layanan…" }}
           </p>
           <p v-else-if="searchError" class="search-message" role="status">
             {{ searchError }} Pilih langsung di peta jika lokasinya belum terdaftar.
           </p>
           <div v-if="searchResults.length" class="search-results-meta">
-            <strong>{{ searchResults.length }} lokasi ditemukan</strong>
-            <span>Pilih lokasi yang paling sesuai</span>
+            <strong>{{ searchResults.length }} tempat ditemukan</strong>
+            <span v-if="searchResultMode === 'full'">Pilih lokasi yang paling sesuai</span>
           </div>
           <ul
             v-if="searchResults.length"
             id="place-search-results"
             class="search-results"
+            role="listbox"
             aria-label="Hasil pencarian lokasi"
           >
             <li
-              v-for="place in searchResults"
+              v-for="(place, placeIndex) in searchResults"
+              :id="`place-suggestion-${placeIndex}`"
               :key="`${place.lat},${place.lng},${place.name}`"
+              role="option"
+              :aria-selected="placeIndex === activeSuggestion"
             >
-              <button type="button" @click="selectSearchResult(place)">
-                <span class="search-result-icon"><MapPin :size="16" /></span
+              <button
+                type="button"
+                :class="{ active: placeIndex === activeSuggestion }"
+                @mouseenter="activeSuggestion = placeIndex"
+                @click="selectSearchResult(place)"
+              >
+                <span class="search-result-icon" :class="`search-category-${place.type || 'other'}`"><PlaceIconGlyph :type="place.iconType || place.type" :category="place.type" :size="16" /></span
                 ><span
-                  ><strong>{{ place.name }}</strong
+                  ><strong><template v-for="(part, partIndex) in highlightedName(place.name)" :key="partIndex"><span v-if="part.match" class="search-match">{{ part.text }}</span><template v-else>{{ part.text }}</template></template></strong
                   ><small>{{ place.address }}</small
-                  ><em v-if="place.source === 'antarfix'" class="survey-result-badge">Data AntarFix</em></span
-                ><ArrowRight :size="16" />
+                  ></span
+                ><span v-if="suggestionDistance(place)" class="search-distance">{{ suggestionDistance(place) }}</span>
               </button>
             </li>
           </ul>
-          <a
-            class="search-attribution"
-            href="https://www.openstreetmap.org/copyright"
-            target="_blank"
-            rel="noopener noreferrer"
-            >Data survei AntarFix + © OpenStreetMap contributors</a
-          >
+          <div v-else-if="suggestionSettled && !searchError && searchResultMode === 'suggestions' && searchQuery.trim().length >= 2" class="search-empty-state">
+            <p>Belum ada tempat yang cocok di daftar lokal.</p>
+            <button v-if="searchQuery.trim().length >= 3" type="button" @click="submitPlaceSearch">Cari lebih luas</button>
+            <small v-else>Lanjutkan mengetik untuk pencarian lebih luas.</small>
+          </div>
         </form>
+
+        <section v-if="showRecentLocations" class="recent-locations" aria-labelledby="recent-locations-title">
+          <div class="recent-locations-header">
+            <strong id="recent-locations-title">Terakhir digunakan</strong>
+            <button type="button" @click="clearRecentLocations">Hapus riwayat</button>
+          </div>
+          <ul class="search-results recent-location-list">
+            <li
+              v-for="place in recentLocations"
+              :key="`recent-${place.lat},${place.lng},${place.name}`"
+            >
+              <button type="button" @click="selectRecentLocation(place)">
+                <span class="search-result-icon recent-location-icon"><Clock3 :size="15" /></span
+                ><span
+                  ><strong>{{ place.name }}</strong
+                  ><small>{{ place.address }}</small></span
+                >
+              </button>
+            </li>
+          </ul>
+        </section>
 
         <button type="button" class="pick-map-button" @click="pickOnMap">
           <span><MousePointer2 :size="19" /></span
@@ -952,11 +1346,18 @@ onBeforeUnmount(clearCenterPreview);
             </div>
             <p v-if="manualError" class="manual-error" role="alert">{{ manualError }}</p>
             <button type="submit" class="text-button" :disabled="busy">
-              Gunakan sebagai titik {{ searchTarget === "pickup" ? "A" : "B" }}
+              Gunakan sebagai {{ searchTarget === "pickup" ? "lokasi jemput" : "tujuan" }}
               <ArrowRight :size="15" />
             </button>
           </form>
         </details>
+        <a
+          class="search-attribution picker-attribution"
+          href="https://www.openstreetmap.org/copyright"
+          target="_blank"
+          rel="noopener noreferrer"
+          >© OpenStreetMap contributors</a
+        >
       </section>
     </div>
 

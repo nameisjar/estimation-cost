@@ -8,6 +8,8 @@ export type AdminPlace = {
   externalPlaceId: string | null;
   name: string;
   category: string;
+  iconType: string;
+  iconTypeVerified: boolean;
   address: string;
   displayAddress: string;
   addressSource: PlaceAddressSource;
@@ -39,6 +41,8 @@ type AdminPlaceRow = {
   external_place_id: string | null;
   name: string;
   category: string;
+  icon_type: string;
+  icon_type_verified: boolean;
   address: string;
   address_source: PlaceAddressSource;
   address_verified: boolean;
@@ -61,7 +65,7 @@ type AdminPlaceRow = {
   total_count?: number | string;
 };
 
-const selectColumns = `id, external_place_id, name, category, address, address_source, address_verified,
+const selectColumns = `id, external_place_id, name, category, icon_type, icon_type_verified, address, address_source, address_verified,
   ST_Y(location::geometry) AS lat, ST_X(location::geometry) AS lng,
   rating, review_count, phone, website, opening_hours, google_maps_url,
   search_keyword, search_area, active, verified, min_zoom, label_priority,
@@ -73,6 +77,8 @@ function asAdminPlace(row: AdminPlaceRow): AdminPlace {
     externalPlaceId: row.external_place_id,
     name: row.name,
     category: row.category,
+    iconType: row.icon_type,
+    iconTypeVerified: row.icon_type_verified,
     address: row.address,
     displayAddress: displayPlaceAddress(row.address, row.search_area),
     addressSource: row.address_source,
@@ -167,16 +173,18 @@ export class AdminPlaceRepository {
          name, category, address, location, rating, review_count, phone, website,
          opening_hours, google_maps_url, search_keyword, search_area, source,
          verified, active, popularity, min_zoom, label_priority,
-         address_source, address_verified, address_updated_at
+         address_source, address_verified, address_updated_at, icon_type, icon_type_verified
        ) VALUES (
          $1, $2, $3, ST_SetSRID(ST_MakePoint($5, $4), 4326)::geography,
          $6, $7, $8, $9, $10, $11, $12, $13, 'admin', TRUE, $14, $15, $16, $17,
-         $18, $18 = 'manual', CASE WHEN $18 = 'missing' THEN NULL ELSE NOW() END
+         $18, $18 = 'manual', CASE WHEN $18 = 'missing' THEN NULL ELSE NOW() END,
+         $19, TRUE
        ) RETURNING id`,
       [place.name, place.category, storedAddress, place.lat, place.lng,
         place.rating ?? null, place.reviewCount ?? null, place.phone || null, place.website || null,
         place.openingHours || null, place.googleMapsUrl || null, place.searchKeyword || null,
-        place.searchArea || null, place.active, rank.popularity, rank.minZoom, rank.labelPriority, addressSource],
+        place.searchArea || null, place.active, rank.popularity, rank.minZoom, rank.labelPriority, addressSource,
+        place.iconType || place.category || 'other'],
     );
     return (await this.find(result.rows[0]!.id))!;
   }
@@ -195,12 +203,14 @@ export class AdminPlaceRepository {
          popularity=$15, min_zoom=$16, label_priority=$17,
          address_source=$18, address_verified=($18 = 'manual'),
          address_updated_at=CASE WHEN $18 = 'missing' THEN NULL ELSE NOW() END,
+         icon_type=$19, icon_type_verified=TRUE,
          verified=TRUE, updated_at=NOW()
-       WHERE id=$19`,
+       WHERE id=$20`,
       [place.name, place.category, storedAddress, place.lat, place.lng,
         place.rating ?? null, place.reviewCount ?? null, place.phone || null, place.website || null,
         place.openingHours || null, place.googleMapsUrl || null, place.searchKeyword || null,
-        place.searchArea || null, place.active, rank.popularity, rank.minZoom, rank.labelPriority, addressSource, id],
+        place.searchArea || null, place.active, rank.popularity, rank.minZoom, rank.labelPriority, addressSource,
+        place.iconType || place.category || 'other', id],
     );
     if (!result.rowCount) throw new ApiError(404, 'PLACE_NOT_FOUND', 'Tempat tidak ditemukan.');
     return (await this.find(id))!;

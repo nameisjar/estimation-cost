@@ -5,6 +5,8 @@ export type AdminPlace = {
   externalPlaceId: string | null;
   name: string;
   category: string;
+  iconType: string;
+  iconTypeVerified: boolean;
   address: string;
   displayAddress: string;
   addressSource: 'missing' | 'survey' | 'automatic' | 'manual';
@@ -26,8 +28,28 @@ export type AdminPlace = {
   createdAt: string;
   updatedAt: string;
 };
-export type AdminPlaceInput = Omit<AdminPlace, 'id' | 'externalPlaceId' | 'displayAddress' | 'addressSource' | 'addressVerified' | 'verified' | 'minZoom' | 'labelPriority' | 'createdAt' | 'updatedAt'>;
+export type AdminPlaceInput = Omit<AdminPlace, 'id' | 'externalPlaceId' | 'displayAddress' | 'addressSource' | 'addressVerified' | 'iconTypeVerified' | 'verified' | 'minZoom' | 'labelPriority' | 'createdAt' | 'updatedAt'>;
 export type AdminPlaceList = { items: AdminPlace[]; total: number; page: number; limit: number };
+export type PlaceCsvImportMode = 'upsert' | 'insert-only';
+export type PlaceCsvIssue = { row: number; name: string; message: string };
+export type PlaceCsvWarning = PlaceCsvIssue;
+export type PlaceCsvAdjustment = PlaceCsvIssue;
+export type PlaceCsvPreview = {
+  totalRows: number;
+  validRows: number;
+  invalidRows: number;
+  newRows: number;
+  updateRows: number;
+  skippedRows: number;
+  issues: PlaceCsvIssue[];
+  correctedRows: number;
+  corrections: PlaceCsvAdjustment[];
+  mergedRows: number;
+  merges: PlaceCsvAdjustment[];
+  outsideServiceRows: number;
+  warnings: PlaceCsvWarning[];
+};
+export type PlaceCsvImportResult = PlaceCsvPreview & { inserted: number; updated: number };
 
 const baseUrl = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
 
@@ -79,4 +101,18 @@ export function reverseAdminAddress(lat: number, lng: number) {
 }
 export function enrichAdminPlaceAddress(id: string) {
   return request<AdminPlace>(`/api/admin/places/${id}/enrich-address`, { method: 'POST' });
+}
+export function previewAdminPlacesCsv(csv: string, mode: PlaceCsvImportMode) {
+  return request<PlaceCsvPreview>(`/api/admin/places/import/preview?mode=${mode}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/csv;charset=UTF-8' },
+    body: csv,
+  });
+}
+export function importAdminPlacesCsv(csv: string, mode: PlaceCsvImportMode) {
+  return request<PlaceCsvImportResult>(`/api/admin/places/import/commit?mode=${mode}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/csv;charset=UTF-8' },
+    body: csv,
+  });
 }

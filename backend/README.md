@@ -9,7 +9,7 @@ src/
 ├── controllers/estimate.controller.ts
 ├── routes/estimate.routes.ts
 ├── services/
-│   ├── routing/{routing.service,osrm.provider}.ts
+│   ├── routing/{routing.service,osrm.provider,fallback-routing.provider}.ts
 │   └── pricing/pricing.service.ts
 ├── types/index.ts
 ├── validation.ts
@@ -20,7 +20,7 @@ src/
 scripts/smoke.mjs
 ```
 
-`Estimate Controller → RoutingService → RoutingProvider → OsrmProvider`. PricingService hanya menerima jarak dan tidak mengetahui OSRM. Routing provider dapat diganti tanpa memindahkan logic OSRM ke controller atau pricing.
+`Estimate Controller → RoutingService → RoutingProvider → OsrmProvider`. Jika `OSRM_FALLBACK_BASE_URL` diisi, `FallbackRoutingProvider` mencoba provider kedua hanya ketika primary gagal. PricingService hanya menerima jarak dan tidak mengetahui OSRM. Routing provider dapat diganti tanpa memindahkan logic OSRM ke controller atau pricing.
 
 ## Install dan jalankan
 
@@ -40,7 +40,8 @@ PowerShell: `npm.cmd` jika execution policy memblokir `npm.ps1`, dan `Copy-Item 
 | Variabel | Default | Fungsi |
 | --- | --- | --- |
 | PORT | 3000 | Port Express |
-| OSRM_BASE_URL | https://router.project-osrm.org | Endpoint provider OSRM |
+| OSRM_BASE_URL | http://127.0.0.1:5000 | Endpoint primary OSRM lokal pada deployment mandiri |
+| OSRM_FALLBACK_BASE_URL | kosong | Endpoint fallback opsional selama masa transisi |
 | OSRM_TIMEOUT_MS | 12000 | Timeout request OSRM |
 | GEOCODING_BASE_URL | https://nominatim.openstreetmap.org | Endpoint pencarian dan reverse geocoding |
 | GEOCODING_TIMEOUT_MS | 10000 | Timeout request geocoding |
@@ -78,7 +79,17 @@ Aktifkan ekstensi dan tabel dengan `npm run db:migrate`, lalu impor data menggun
 placeId,name,category,address,latitude,longitude,rating,reviewCount,phone,website,openingHours,googleMapsUrl,searchKeyword,searchArea,collectedAt
 ```
 
-`name` dan koordinat wajib tersedia. Jika kolom koordinat kosong, importer mencoba membacanya dari `googleMapsUrl`. Kolom lain boleh kosong, termasuk `placeId`. Baris tidak valid dilewati dengan peringatan dan dihitung pada ringkasan import. Data sumber lengkap tetap disimpan, sedangkan pencarian menggabungkan nama, kategori, alamat, kata kunci, dan area. `searchKeyword` menjadi fallback kategori untuk icon peta. Rating, jumlah ulasan, dan jenis tempat menentukan prioritas label serta tingkat zoom. Data survei menjadi hasil utama; Nominatim hanya dipakai saat database tidak menemukan kandidat. File contoh ada di `data/places.example.csv`.
+`name` dan koordinat wajib tersedia. Jika kolom koordinat kosong, importer mencoba membacanya dari `googleMapsUrl`. Kolom lain boleh kosong, termasuk `placeId`. Baris tidak valid dilewati dengan peringatan dan dihitung pada ringkasan import. Data sumber lengkap tetap disimpan, sedangkan pencarian menggabungkan nama, kategori, alamat, kata kunci, dan area. Jenis ikon diturunkan dari nama dan kategori tempat; `searchKeyword` tidak menentukan ikon karena hanya menunjukkan kata kunci saat survei. Rating, jumlah ulasan, dan jenis tempat menentukan prioritas label serta tingkat zoom. Data survei menjadi hasil utama; Nominatim hanya dipakai saat database tidak menemukan kandidat. File contoh ada di `data/places.example.csv`.
+
+Admin juga dapat mengimpor dari dashboard tanpa CLI. `POST /api/admin/places/import/preview` memvalidasi dan menghitung perubahan tanpa menulis database, sedangkan `POST /api/admin/places/import/commit` menyimpan seluruh hasil dalam satu transaksi. Keduanya menerima body `text/csv`, memerlukan sesi admin dan token CSRF, serta mendukung query `mode=upsert` atau `mode=insert-only`. Aplikasi tidak menetapkan batas ukuran file maupun jumlah baris; kapasitas aktual mengikuti RAM dan kemampuan database server. Koordinat valid di luar radius layanan disimpan dan dilaporkan sebagai `warnings`, sedangkan `outsideServiceRows` memuat jumlah lengkapnya. Data tersebut tetap tidak memperluas area pemesanan karena pencarian dan estimasi menggunakan konfigurasi layanan secara terpisah. Koordinat invalid dipulihkan dari `googleMapsUrl` atau ditukar jika pasangan latitude/longitude jelas terbalik. Duplikat berdasarkan `placeId`, atau nama sama dalam jarak 20 meter, digabung dan dipakai untuk melengkapi nilai kosong; respons menyediakan `correctedRows`, `corrections`, `mergedRows`, dan `merges` agar seluruh perubahan dapat diaudit sebelum commit. Konfigurasi Nginx contoh menonaktifkan batas body hanya untuk endpoint ini; endpoint API lain tetap dibatasi 8 KB.
+
+Poligon bangunan disimpan terpisah dari POI. Setelah migrasi, isi data bangunan OpenStreetMap di sekitar pusat layanan dengan:
+
+```bash
+npm run buildings:sync -- --radius-km=3
+```
+
+Script mengambil way/relation bertanda `building`, area fasilitas terpilih seperti lapangan, taman, sekolah, rumah sakit, dan pasar, atribut alamat, serta POI bernama (`office`, `shop`, `amenity`, `tourism`, `healthcare`, `craft`, dan kategori relevan lainnya) melalui Overpass. Bangunan diubah menjadi Polygon/MultiPolygon valid di `building_footprints`, area fasilitas disimpan di `osm_areas`, dan POI disimpan di `osm_pois`. Radius default tanpa argumen adalah 3 km. Jalankan perintah ini sebagai pekerjaan sinkronisasi berkala; untuk penggunaan produksi, isi `OVERPASS_BASE_URL` dengan instance/provider yang kapasitas dan kebijakannya sesuai kebutuhan.
 
 Jika alamat CSV kosong, nilai asli tetap ditandai `missing`, tetapi API publik menampilkan `searchArea` dalam format yang mudah dibaca agar pengguna tidak melihat placeholder. Jalankan migrasi dan pengayaan alamat secara bertahap:
 
@@ -145,9 +156,17 @@ Latitude harus number finite -90 sampai 90; longitude number finite -180 sampai 
 
 Provider mengirim `User-Agent`, referer, bahasa Indonesia, membatasi request Nominatim publik menjadi satu per detik, dan memakai cache memori (10 menit untuk pencarian, 24 jam untuk reverse). Nama tempat tidak dijamin tersedia; hasil bergantung pada data OpenStreetMap dan koordinat tetap dipakai sebagai fallback. Atur `GEOCODING_USER_AGENT` ke identitas deployment yang nyata dan ikuti [Nominatim Usage Policy](https://operations.osmfoundation.org/policies/nominatim/).
 
+### GET /api/places/suggestions
+
+`GET /api/places/suggestions?q=wa&lat=-8.4932&lng=140.4018` menerima query 2–120 karakter dan mengembalikan maksimal enam saran dari PostGIS lokal. Pencarian mencakup nama, alamat, alias, kategori, kata kunci, dan area pencarian, dengan urutan kecocokan nama, kemiripan teks, prioritas, popularitas, lalu jarak. Endpoint ini tidak memakai fallback Nominatim sehingga aman dipanggil sebagai autocomplete dengan debounce. `lat` dan `lng` opsional tetapi harus dikirim berpasangan.
+
 ### GET /api/places/map
 
 Menerima `north`, `south`, `east`, `west`, `zoom`, dan `limit` opsional (maksimal 200). Endpoint mengembalikan tempat survei aktif dalam viewport untuk label Leaflet. Pada zoom di bawah 14 respons selalu kosong; tanpa konfigurasi database respons juga aman berupa array kosong.
+
+### GET /api/buildings/at
+
+`GET /api/buildings/at?lat=-8.4932&lng=140.4018` hanya mengembalikan poligon PostGIS yang benar-benar menutupi koordinat. Bangunan diprioritaskan saat bertumpuk dengan area fasilitas; setelah itu bidang terkecil dipilih. Nama berasal dari tag OSM atau POI survei/OSM yang koordinatnya berada di dalam poligon yang sama; POI terdekat di luar bidang tidak digunakan. Respons menyertakan `kind` bernilai `building` atau `area`, sehingga frontend dapat membedakan gaya sorot. Nama endpoint dipertahankan untuk kompatibilitas. Tanpa database atau tanpa poligon yang cocok, `data` bernilai `null`; frontend tidak menggambar lingkaran pengganti.
 
 ### Dashboard dan API admin
 
@@ -159,6 +178,8 @@ node -e "console.log(require('node:crypto').randomBytes(48).toString('hex'))"
 ```
 
 API `/api/admin/*` memakai cookie sesi `HttpOnly` bertanda tangan, `SameSite=Strict`, masa berlaku terbatas, validasi origin CORS, dan header mutasi khusus. Endpoint mencakup login/logout, pemeriksaan sesi, statistik, daftar dengan pencarian serta filter status, tambah, edit, dan perubahan status tempat. Data tempat tidak dihapus permanen dari dashboard; nonaktifkan tempat agar riwayat tetap tersimpan dan tempat tidak muncul di estimator.
+
+Kategori mengatur kelompok tempat dan prioritas label, sedangkan `icon_type` menentukan simbol khusus pada peta. Dashboard menandai pilihan ikon sebagai sudah diperiksa sehingga import berikutnya tidak menimpanya. Setelah aturan klasifikasi diperbarui, jalankan `npm run places:reclassify-icons` untuk memperbarui data lama yang belum diperiksa admin.
 
 Error:
 
@@ -209,7 +230,7 @@ Smoke test memeriksa health, public config, estimate default, GeoJSON route, kon
 
 Koordinat dikirim dalam format longitude,latitude; meter menjadi km, detik menjadi menit. `radiuses=1000;1000` membatasi snapping maksimum 1 km dari jalan. Durasi profil driving belum memperhitungkan lalu lintas real time atau waktu menunggu. Lihat [OSRM HTTP API](https://project-osrm.org/docs/v5.24.0/api/).
 
-Public OSRM endpoint untuk development/testing tidak otomatis cocok untuk traffic production berskala besar. Gunakan instance/provider sesuai kapasitas dan ketentuan production; pembatas trafik dapat diterapkan di hosting/reverse proxy sesuai kebutuhan.
+Public OSRM endpoint untuk development/testing tidak otomatis cocok untuk traffic production berskala besar. Deployment mandiri memakai container pada [deploy/osrm](../deploy/osrm/README.md) dan mengarahkannya melalui `OSRM_BASE_URL=http://127.0.0.1:5000`. Fallback bersifat opsional dan sebaiknya dikosongkan setelah instance lokal stabil. Gunakan ekstrak yang mencakup seluruh radius layanan dan perbarui graph ketika data jalan diperbarui.
 
 Gunakan satu repository AntarFix Estimator dan set working/root directory layanan backend ke `backend/` pada host Node.js. Install/build `npm ci && npm run build`, start `npm start`. DevDependencies dibutuhkan pada tahap build; dependency runtime dapat dipangkas setelah build. Set PORT sesuai platform, environment pricing/OSRM, `FRONTEND_URL` ke origin frontend, dan nomor WhatsApp bisnis bila tersedia. Gunakan HTTPS. Nginx dapat menyajikan `frontend/dist` dan meneruskan `/api` ke Express pada origin yang sama. Seluruh source disimpan dalam satu repository; proses frontend dan backend tetap terpisah.
 

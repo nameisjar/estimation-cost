@@ -17,6 +17,13 @@ function httpUrl(name: string, fallback: string): string {
   if (!['https:', 'http:'].includes(parsed.protocol)) throw new Error(`Invalid configuration: ${name}`);
   return value.replace(/\/$/, '');
 }
+function optionalHttpUrl(name: string): string {
+  const value = (process.env[name] || '').trim();
+  if (!value) return '';
+  const parsed = new URL(value);
+  if (!['https:', 'http:'].includes(parsed.protocol)) throw new Error(`Invalid configuration: ${name}`);
+  return value.replace(/\/$/, '');
+}
 function httpUrls(): string[] {
   const raw = process.env.FRONTEND_URLS || process.env.FRONTEND_URL || 'http://localhost:5173';
   const values = raw.split(',').map(value => value.trim()).filter(Boolean);
@@ -69,6 +76,7 @@ const rateLimit: RateLimitConfig = {
 export const config = {
   port: numeric('PORT', 3000, true),
   osrmBaseUrl: httpUrl('OSRM_BASE_URL', 'https://router.project-osrm.org'),
+  osrmFallbackBaseUrl: optionalHttpUrl('OSRM_FALLBACK_BASE_URL'),
   osrmTimeoutMs: numeric('OSRM_TIMEOUT_MS', 12000, true),
   geocodingBaseUrl: httpUrl('GEOCODING_BASE_URL', 'https://nominatim.openstreetmap.org'),
   geocodingTimeoutMs: numeric('GEOCODING_TIMEOUT_MS', 10000, true),

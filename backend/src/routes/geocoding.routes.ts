@@ -11,7 +11,8 @@ export function geocodingRoutes(provider: GeocodingProvider) {
       const lat = Number(req.query.lat);
       const lng = Number(req.query.lng);
       const point = validatePoint({ lat, lng }, 'lokasi');
-      res.json({ success: true, data: await provider.reverse(point) });
+      const includeGeometry = req.query.geometry === '1';
+      res.json({ success: true, data: await provider.reverse(point, { includeGeometry }) });
     } catch (error) { next(error); }
   });
 

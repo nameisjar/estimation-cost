@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { ApiError } from '../errors.js';
 import type { MapBounds, PlaceRepository } from '../types/index.js';
+import { validatePoint } from '../validation.js';
 
 function finiteQuery(value: unknown, name: string): number {
   const parsed = typeof value === 'string' ? Number(value) : Number.NaN;
@@ -10,6 +11,22 @@ function finiteQuery(value: unknown, name: string): number {
 
 export function placeRoutes(repository?: PlaceRepository) {
   const router = Router();
+
+  router.get('/places/suggestions', async (req, res, next) => {
+    try {
+      const query = typeof req.query.q === 'string' ? req.query.q.trim() : '';
+      if (query.length < 2 || query.length > 120) {
+        throw new ApiError(400, 'INVALID_SUGGESTION_QUERY', 'Masukkan minimal 2 dan maksimal 120 karakter.');
+      }
+      const hasLat = req.query.lat !== undefined;
+      const hasLng = req.query.lng !== undefined;
+      if (hasLat !== hasLng) throw new ApiError(400, 'INVALID_SEARCH_FOCUS', 'Fokus pencarian harus memiliki lat dan lng.');
+      const near = hasLat && hasLng
+        ? validatePoint({ lat: Number(req.query.lat), lng: Number(req.query.lng) }, 'fokus pencarian')
+        : undefined;
+      res.json({ success: true, data: repository ? await repository.search(query, near, 6) : [] });
+    } catch (error) { next(error); }
+  });
 
   router.get('/places/map', async (req, res, next) => {
     try {

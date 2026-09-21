@@ -18,9 +18,9 @@ test('WhatsApp requires configured number and encodes coordinates and price', ()
   const url = new URL(whatsappUrl('6281234567890', details)!);
   assert.equal(url.hostname, 'wa.me'); assert.equal(url.pathname, '/6281234567890');
   const message = url.searchParams.get('text')!;
-  assert.ok(message.includes('*A. Titik jemput*\nWarung Mie Ayam\nJalan Mandala, Merauke'));
+  assert.ok(message.includes('*LOKASI JEMPUT*\nWarung Mie Ayam\nJalan Mandala, Merauke'));
   assert.ok(message.includes('Peta: https://www.google.com/maps?q=-8.4932,140.4018'));
-  assert.ok(message.includes('*B. Titik tujuan*\nLapangan Jawa'));
+  assert.ok(message.includes('*TUJUAN*\nLapangan Jawa'));
   assert.ok(message.includes('Waktu tempuh: sekitar 12 menit'));
   assert.ok(message.includes('Biaya: *Rp18.000*'));
   assert.ok(!message.includes('�'));

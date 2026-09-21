@@ -2,14 +2,16 @@
 import { computed, onMounted, ref } from 'vue';
 import {
   ArrowLeft, ChevronLeft, ChevronRight, CircleAlert, Database, Edit3,
-  Eye, EyeOff, LoaderCircle, LogOut, MapPinned, Menu, Plus, Search, Store, WandSparkles, X,
+  Eye, EyeOff, LoaderCircle, LogOut, MapPinned, Menu, Plus, Search, Store, Upload, WandSparkles, X,
 } from 'lucide-vue-next';
 import AdminPlaceForm from './components/admin/AdminPlaceForm.vue';
+import AdminCsvImport from './components/admin/AdminCsvImport.vue';
+import PlaceIconGlyph from './components/PlaceIconGlyph.vue';
 import { getConfig } from './services/estimate.service';
 import {
   AdminApiError, adminLogin, adminLogout, createAdminPlace, enrichAdminPlaceAddress, getAdminPlaces,
   getAdminSession, getAdminStats, setAdminPlaceActive, updateAdminPlace,
-  type AdminPlace, type AdminPlaceInput, type AdminSession, type AdminStats,
+  type AdminPlace, type AdminPlaceInput, type AdminSession, type AdminStats, type PlaceCsvImportResult,
 } from './services/admin.service';
 
 const session = ref<AdminSession | null>(null);
@@ -31,6 +33,7 @@ const limit = 20;
 const total = ref(0);
 const sidebarOpen = ref(false);
 const formOpen = ref(false);
+const importOpen = ref(false);
 const editingPlace = ref<AdminPlace | null>(null);
 const saving = ref(false);
 const enrichingPlaceId = ref('');
@@ -133,6 +136,13 @@ async function savePlace(value: AdminPlaceInput) {
   finally { saving.value = false; }
 }
 
+async function importedCsv(result: PlaceCsvImportResult) {
+  importOpen.value = false;
+  page.value = 1;
+  notify(`Impor selesai: ${result.inserted} data baru dan ${result.updated} data diperbarui.`);
+  await loadData();
+}
+
 async function togglePlace(place: AdminPlace) {
   try {
     await setAdminPlaceActive(place.id, !place.active);
@@ -193,7 +203,7 @@ function addressStatusLabel(place: AdminPlace) {
     <button v-if="sidebarOpen" class="admin-sidebar-shade" aria-label="Tutup menu" @click="sidebarOpen = false"></button>
 
     <div class="admin-main">
-      <header class="admin-topbar"><button class="admin-mobile-menu" aria-label="Buka menu" @click="sidebarOpen = true"><Menu :size="20" /></button><div><span class="admin-kicker">DASHBOARD ADMIN</span><h1>Data tempat</h1></div><button class="admin-primary-button" @click="openAdd"><Plus :size="17" />Tambah tempat</button></header>
+      <header class="admin-topbar"><button class="admin-mobile-menu" aria-label="Buka menu" @click="sidebarOpen = true"><Menu :size="20" /></button><div><span class="admin-kicker">DASHBOARD ADMIN</span><h1>Data tempat</h1></div><div class="admin-topbar-actions"><button class="admin-secondary-button" @click="importOpen = true"><Upload :size="16" /><span>Impor CSV</span></button><button class="admin-primary-button" @click="openAdd"><Plus :size="17" /><span>Tambah tempat</span></button></div></header>
 
       <section class="admin-content" id="places">
         <div class="admin-welcome"><div><h2>Kelola titik layanan AntarFix</h2><p>Perbarui nama, alamat, kategori, dan koordinat yang digunakan pengguna.</p></div><Database :size="28" /></div>
@@ -216,7 +226,7 @@ function addressStatusLabel(place: AdminPlace) {
                 <tr v-if="dataBusy"><td colspan="5" class="admin-table-message">Memuat data tempat…</td></tr>
                 <tr v-else-if="!places.length"><td colspan="5" class="admin-table-message">Belum ada tempat yang sesuai dengan pencarian.</td></tr>
                 <tr v-for="place in places" v-else :key="place.id">
-                  <td data-label="Tempat"><div class="admin-place-cell"><span :class="`category-${place.category}`"><Store :size="15" /></span><div><strong>{{ place.name }}</strong><small>{{ place.displayAddress }}</small><em class="admin-address-status" :class="place.addressSource">{{ addressStatusLabel(place) }}</em></div></div></td>
+                  <td data-label="Tempat"><div class="admin-place-cell"><span :class="`category-${place.category}`"><PlaceIconGlyph :type="place.iconType" :category="place.category" :size="16" /></span><div><strong>{{ place.name }}</strong><small>{{ place.displayAddress }}</small><em class="admin-address-status" :class="place.addressSource">{{ addressStatusLabel(place) }}</em></div></div></td>
                   <td data-label="Kategori"><span class="admin-category-pill">{{ categoryLabel(place.category) }}</span></td>
                   <td data-label="Koordinat"><span class="admin-coordinate">{{ place.lat.toFixed(5) }}, {{ place.lng.toFixed(5) }}</span><small class="admin-updated">Diperbarui {{ new Date(place.updatedAt).toLocaleDateString('id-ID') }}</small></td>
                   <td data-label="Status"><span class="admin-status" :class="{ inactive: !place.active }"><i></i>{{ place.active ? 'Aktif' : 'Nonaktif' }}</span></td>
@@ -231,6 +241,7 @@ function addressStatusLabel(place: AdminPlace) {
     </div>
 
     <AdminPlaceForm v-if="formOpen" :place="editingPlace" :center="serviceCenter" :saving="saving" :server-error="formError" @close="formOpen = false" @save="savePlace" />
+    <AdminCsvImport v-if="importOpen" @close="importOpen = false" @imported="importedCsv" />
     <Transition name="admin-toast"><div v-if="toast" class="admin-toast">{{ toast }}</div></Transition>
   </div>
 </template>

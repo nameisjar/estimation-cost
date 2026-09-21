@@ -2,11 +2,24 @@
 import { computed, onMounted, onBeforeUnmount, watch, ref } from 'vue';
 import L from 'leaflet';
 import { LoaderCircle, LocateFixed, Maximize2 } from 'lucide-vue-next';
+import type { GeoJsonObject } from 'geojson';
 import 'leaflet/dist/leaflet.css';
-import type { LocationPoint, Selection, Estimate, MapPlace } from '../types';
+import type { LocationPoint, Selection, Estimate, GeocodedPlace, MapPlace } from '../types';
 import { getMapPlaces } from '../services/estimate.service';
+import { placeIconLabel, placeIconSvg, resolvePlaceIcon } from '../utils/place-icons';
 
-const props = defineProps<{ pickup: LocationPoint | null; destination: LocationPoint | null; selection: Selection | null; estimate: Estimate | null; busy: boolean }>();
+const props = defineProps<{
+  pickup: LocationPoint | null;
+  destination: LocationPoint | null;
+  pickupPlace: GeocodedPlace | null;
+  destinationPlace: GeocodedPlace | null;
+  previewPoint: LocationPoint | null;
+  previewPlace: GeocodedPlace | null;
+  previewTarget: Selection | null;
+  selection: Selection | null;
+  estimate: Estimate | null;
+  busy: boolean;
+}>();
 const emit = defineEmits<{ choose: [point: LocationPoint, target: Selection]; preview: [point: LocationPoint, target: Selection]; 'preview-start': [target: Selection]; located: [point: LocationPoint] }>();
 const container = ref<HTMLDivElement>();
 const notice = ref('');
@@ -23,62 +36,56 @@ let routeOutline: L.Polyline | null = null;
 let userLocationMarker: L.Marker | null = null;
 let accuracyCircle: L.Circle | null = null;
 let surveyPlaceLayer: L.LayerGroup | null = null;
+let locationHighlightLayer: L.LayerGroup | null = null;
 let observer: ResizeObserver;
 let noticeTimer: ReturnType<typeof setTimeout> | undefined;
 let settleTimer: ReturnType<typeof setTimeout> | undefined;
 let placeLoadTimer: ReturnType<typeof setTimeout> | undefined;
 let placeLoadVersion = 0;
 let loadedSurveyPlaces: MapPlace[] = [];
+let visibleLabelIds = new Set<string>();
+let forcedLabelPlaceId: string | null = null;
 let alive = true;
 
-const categoryIcons: Record<string, string> = {
-  medical: '<path d="M8 3v10M3 8h10"/>',
-  education: '<path d="M2.5 4.5 8 2l5.5 2.5L8 7 2.5 4.5Zm2 1.8V10c2.3 1.7 4.7 1.7 7 0V6.3"/>',
-  worship: '<path d="M3 12.5h10M4 10.5h8M5 10.5V6h6v4.5M8 2.5 4.5 6h7L8 2.5Z"/>',
-  food: '<path d="M4 2v5M2.5 2v3.5C2.5 7 4 7 4 7s1.5 0 1.5-1.5V2M4 7v6M10.5 2v11M10.5 2c2 1.8 2 4 0 5"/>',
-  lodging: '<path d="M2.5 11.5v-7M2.5 9h11v2.5M5 6.5h6.5c1.1 0 2 .9 2 2V9M5 5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0Z"/>',
-  finance: '<path d="m2 6 6-3.5L14 6M3 7.5h10M4 7.5v4M7 7.5v4M10 7.5v4M13 7.5v4M2 13h12"/>',
-  automotive: '<path d="M9.8 3.1a3 3 0 0 0-3.7 3.7l-3.6 3.6a1.5 1.5 0 0 0 2.1 2.1l3.6-3.6a3 3 0 0 0 3.7-3.7L10 7.1 8.9 6l1.9-1.9-1-1Z"/>',
-  government: '<path d="m2 6 6-3.5L14 6M3 7.5h10M4 7.5v4M8 7.5v4M12 7.5v4M2 13h12"/>',
-  transport: '<path d="M2 4h8v7H2V4Zm8 2h2l2 2v3h-4V6ZM5 12.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Zm6.5 0a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Z"/>',
-  retail: '<path d="M4 5V4a4 4 0 0 1 8 0v1M2.5 5h11l-.8 8h-9.4l-.8-8ZM6 5V4a2 2 0 0 1 4 0v1"/>',
-  service: '<path d="m8 2 .8 3.2L12 6l-3.2.8L8 10l-.8-3.2L4 6l3.2-.8L8 2ZM3 10l.4 1.6L5 12l-1.6.4L3 14l-.4-1.6L1 12l1.6-.4L3 10Z"/>',
-  other: '<circle cx="8" cy="8" r="3"/>',
-};
-
-function categoryName(category?: string) {
-  const names: Record<string, string> = {
-    medical: 'Kesehatan', education: 'Pendidikan', worship: 'Tempat ibadah',
-    food: 'Makanan', lodging: 'Penginapan', finance: 'Keuangan',
-    automotive: 'Otomotif', government: 'Pemerintahan', transport: 'Transportasi',
-    retail: 'Toko', service: 'Jasa', other: 'Tempat',
-  };
-  return names[category || 'other'] || 'Tempat';
+function escapeMarkup(value: string): string {
+  return value.replace(/[&<>"']/g, character => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+  })[character]!);
 }
 
-function surveyPlaceIcon(place: MapPlace) {
-  const category = place.type && categoryIcons[place.type] ? place.type : 'other';
+function surveyPlaceIcon(place: MapPlace, showLabel: boolean, selectedLabel: boolean) {
+  const category = place.type || 'other';
+  const iconType = resolvePlaceIcon(place.iconType, category);
+  const label = showLabel
+    ? `<span class="survey-place-inline-label${selectedLabel ? ' selected' : ''}">${escapeMarkup(place.name)}</span>`
+    : '';
   return L.divIcon({
-    className: `survey-place-marker survey-category-${category}`,
-    html: `<span class="survey-place-dot" aria-hidden="true"><svg viewBox="0 0 16 16">${categoryIcons[category]}</svg></span>`,
-    iconSize: [24, 24],
-    iconAnchor: [12, 12],
+    className: `survey-place-marker survey-category-${category}${showLabel ? ' has-label' : ''}`,
+    html: `<span class="survey-place-content"><span class="survey-place-dot" aria-hidden="true"><svg viewBox="0 0 16 16">${placeIconSvg[iconType]}</svg></span>${label}</span>`,
+    iconSize: [20, 20],
+    iconAnchor: [10, 10],
   });
 }
 
 function displayRules(zoom: number) {
-  if (zoom < 16) return { maximum: 0, cellWidth: 9999, cellHeight: 9999, requestLimit: 1 };
-  if (zoom === 16) return { maximum: 16, cellWidth: 170, cellHeight: 60, requestLimit: 100 };
-  if (zoom === 17) return { maximum: 30, cellWidth: 130, cellHeight: 50, requestLimit: 140 };
-  if (zoom === 18) return { maximum: 52, cellWidth: 95, cellHeight: 42, requestLimit: 180 };
-  return { maximum: 80, cellWidth: 74, cellHeight: 36, requestLimit: 200 };
+  const compact = (container.value?.clientWidth || window.innerWidth) <= 540;
+  if (zoom < 16) return { maximum: 0, cellWidth: 9999, cellHeight: 9999, requestLimit: 1, labelMaximum: 0 };
+  if (zoom === 16) return { maximum: 18, cellWidth: 155, cellHeight: 56, requestLimit: 100, labelMaximum: compact ? 0 : 3 };
+  if (zoom === 17) return { maximum: 32, cellWidth: 116, cellHeight: 46, requestLimit: 140, labelMaximum: compact ? 4 : 8 };
+  if (zoom === 18) return { maximum: 56, cellWidth: 86, cellHeight: 38, requestLimit: 180, labelMaximum: compact ? 7 : 16 };
+  return { maximum: 84, cellWidth: 68, cellHeight: 32, requestLimit: 200, labelMaximum: compact ? 10 : 20 };
 }
 
 function declutterPlaces(places: MapPlace[], zoom: number): MapPlace[] {
   const rules = displayRules(zoom);
   if (!rules.maximum) return [];
+  const focus = map.project(map.getCenter(), zoom);
+  const displayScore = (place: MapPlace) => {
+    const nearPicker = centerPicking.value && map.project([place.lat, place.lng], zoom).distanceTo(focus) <= 52;
+    return place.labelPriority + (nearPicker ? 2_000 : 0);
+  };
   const sorted = [...places].sort((a, b) =>
-    b.labelPriority - a.labelPriority || b.popularity - a.popularity || a.name.localeCompare(b.name, 'id'),
+    displayScore(b) - displayScore(a) || b.popularity - a.popularity || a.name.localeCompare(b.name, 'id'),
   );
   const occupied = new Set<string>();
   const result: MapPlace[] = [];
@@ -93,30 +100,73 @@ function declutterPlaces(places: MapPlace[], zoom: number): MapPlace[] {
   return result;
 }
 
+type LabelRect = { left: number; right: number; top: number; bottom: number };
+const priorityLabelCategories = new Set(['medical', 'education', 'government', 'transport']);
+
+function rectanglesOverlap(first: LabelRect, second: LabelRect): boolean {
+  return first.left < second.right && first.right > second.left
+    && first.top < second.bottom && first.bottom > second.top;
+}
+
+function stableVisibleLabels(places: MapPlace[], zoom: number, selecting: boolean): Set<string> {
+  const { labelMaximum } = displayRules(zoom);
+  const nextVisible = new Set<string>();
+  if (!labelMaximum) {
+    visibleLabelIds = nextVisible;
+    return nextVisible;
+  }
+  const size = map.getSize();
+  const viewportCenter = map.getCenter();
+  const occupied: LabelRect[] = [];
+  const ranked = [...places].sort((first, second) => {
+    const firstDistance = map.distance(viewportCenter, [first.lat, first.lng]);
+    const secondDistance = map.distance(viewportCenter, [second.lat, second.lng]);
+    const firstScore = first.labelPriority + (priorityLabelCategories.has(first.type || '') ? 220 : 0)
+      + (visibleLabelIds.has(first.id) ? 420 : 0) + (first.id === forcedLabelPlaceId ? 4_000 : 0)
+      + (selecting && firstDistance <= 75 ? 1_000 : 0) - firstDistance * 0.9;
+    const secondScore = second.labelPriority + (priorityLabelCategories.has(second.type || '') ? 220 : 0)
+      + (visibleLabelIds.has(second.id) ? 420 : 0) + (second.id === forcedLabelPlaceId ? 4_000 : 0)
+      + (selecting && secondDistance <= 75 ? 1_000 : 0) - secondDistance * 0.9;
+    return secondScore - firstScore || second.popularity - first.popularity;
+  });
+  for (const place of ranked) {
+    const point = map.latLngToContainerPoint([place.lat, place.lng]);
+    const width = Math.min(138, Math.max(58, 18 + place.name.length * 5.2));
+    const height = place.name.length > 22 && size.x <= 540 ? 34 : 21;
+    const left = point.x - width / 2;
+    const top = point.y + 13;
+    const rect = { left, right: left + width, top, bottom: top + height };
+    const forced = place.id === forcedLabelPlaceId;
+    if (!forced && (rect.left < 6 || rect.right > size.x - 6 || rect.top < 6 || rect.bottom > size.y - 6)) continue;
+    if (!forced && occupied.some(current => rectanglesOverlap(current, rect))) continue;
+    occupied.push(rect);
+    nextVisible.add(place.id);
+    if (nextVisible.size >= labelMaximum) break;
+  }
+  visibleLabelIds = nextVisible;
+  return nextVisible;
+}
+
 function renderSurveyPlaces(places: MapPlace[]) {
   if (!map || !surveyPlaceLayer) return;
   surveyPlaceLayer.clearLayers();
   const selecting = centerPicking.value;
-  for (const place of declutterPlaces(places, map.getZoom())) {
+  const displayedPlaces = declutterPlaces(places, map.getZoom());
+  if (forcedLabelPlaceId && !displayedPlaces.some(place => place.id === forcedLabelPlaceId)) forcedLabelPlaceId = null;
+  const labelIds = stableVisibleLabels(displayedPlaces, map.getZoom(), selecting);
+  for (const place of displayedPlaces) {
+    const selectedLabel = place.id === forcedLabelPlaceId;
     const marker = L.marker([place.lat, place.lng], {
-      icon: surveyPlaceIcon(place),
-      title: `${place.name} · ${categoryName(place.type)}`,
+      icon: surveyPlaceIcon(place, labelIds.has(place.id) || selectedLabel, selectedLabel),
+      title: `${place.name} · ${placeIconLabel(place.iconType, place.type)}`,
       alt: place.name,
       riseOnHover: true,
       zIndexOffset: -250,
-      opacity: selecting ? 0.68 : 1,
+      opacity: selecting ? 0.82 : 1,
     }).addTo(surveyPlaceLayer);
-    const label = document.createElement('span');
-    label.className = 'survey-place-label-text';
-    label.textContent = place.name;
-    marker.bindTooltip(label, {
-      permanent: !selecting,
-      direction: selecting ? 'top' : 'right',
-      offset: selecting ? [0, -10] : [7, 0],
-      className: `survey-place-label${selecting ? ' selection-tooltip' : ''}`,
-    });
     marker.on('click', () => {
-      marker.openTooltip();
+      forcedLabelPlaceId = place.id;
+      renderSurveyPlaces(loadedSurveyPlaces);
       if (centerPicking.value && props.selection && !props.busy) map.panTo([place.lat, place.lng]);
     });
   }
@@ -154,14 +204,73 @@ function scheduleSurveyPlaces() {
   }, 260);
 }
 
-function icon(letter: string) {
-  const markerClass = letter === 'A' ? 'marker-a' : 'marker-b';
+function icon(target: Selection) {
+  const markerClass = target === 'pickup' ? 'marker-pickup' : 'marker-destination';
+  const gradientId = `saved-marker-gradient-${target}`;
+  const shape = target === 'pickup'
+    ? '<circle class="saved-marker-shape" style="fill:url(#saved-marker-gradient-pickup)" cx="17" cy="15" r="12"/><ellipse class="saved-marker-highlight" cx="12.5" cy="9.5" rx="4.8" ry="2.4" transform="rotate(-24 12.5 9.5)"/>'
+    : '<path class="saved-marker-shape" style="fill:url(#saved-marker-gradient-destination)" d="M17 2.5C9.2 2.5 3 8.6 3 16.2c0 8.5 8.6 14.1 14 17.8 5.4-3.7 14-9.3 14-17.8C31 8.6 24.8 2.5 17 2.5Z"/><ellipse class="saved-marker-highlight" cx="12.5" cy="8.8" rx="5.5" ry="2.8" transform="rotate(-24 12.5 8.8)"/>';
+  const stemStart = target === 'pickup' ? 20 : 29;
   return L.divIcon({
     className: 'point-marker',
-    html: `<svg class="saved-marker ${markerClass}" viewBox="0 0 44 52" aria-hidden="true"><path class="saved-marker-shape" d="M22 2.5C11.5 2.5 3 10.9 3 21.4 3 34.4 16.8 43.5 22 47c5.2-3.5 19-12.6 19-25.6C41 10.9 32.5 2.5 22 2.5Z"/><text x="22" y="26">${letter}</text></svg>`,
-    iconSize: [44, 52],
-    iconAnchor: [22, 47],
+    html: `<svg class="saved-marker ${markerClass}" viewBox="0 0 34 42" aria-hidden="true"><defs><linearGradient id="${gradientId}" x1="6" y1="4" x2="28" y2="33" gradientUnits="userSpaceOnUse"><stop class="saved-marker-gradient-light"/><stop class="saved-marker-gradient-dark" offset="1"/></linearGradient></defs><path class="saved-marker-stem-shadow" d="M17 ${stemStart}V38"/><path class="saved-marker-stem" d="M17 ${stemStart}V38"/><g class="saved-marker-body">${shape}<circle class="saved-marker-core" cx="17" cy="15" r="4"/></g><g class="saved-marker-crosshair"><circle cx="17" cy="38" r="6.5"/><path d="M17 28.5V33M17 43V47.5M7.5 38H12M22 38H26.5"/></g><circle class="saved-marker-dot" cx="17" cy="38" r="2.75"/></svg>`,
+    iconSize: [34, 42],
+    iconAnchor: [17, 38],
   });
+}
+
+function addLocationHighlight(
+  point: LocationPoint,
+  place: GeocodedPlace | null,
+  target: Selection,
+  allowPointFallback = true,
+) {
+  if (!locationHighlightLayer) return;
+  const outline = target === 'pickup' ? '#07509a' : '#f25308';
+  const areaGeometry = place?.geometryKind === 'area';
+  const className = `selected-location-highlight ${areaGeometry ? 'area' : 'building'} ${target}`;
+  if (place?.geometry) {
+    try {
+      L.geoJSON(place.geometry as GeoJsonObject, {
+        pane: 'selectionHighlights',
+        interactive: false,
+        style: {
+          color: outline,
+          weight: areaGeometry ? 2.5 : 2,
+          opacity: 0.9,
+          fillColor: '#f5cf32',
+          fillOpacity: areaGeometry ? 0.3 : 0.58,
+          className,
+        },
+      }).addTo(locationHighlightLayer);
+      return;
+    } catch {
+      // Confirmed locations may still use the compact point fallback below.
+    }
+  }
+  if (!allowPointFallback) return;
+  L.circleMarker([point.lat, point.lng], {
+    pane: 'selectionHighlights',
+    interactive: false,
+    radius: 11,
+    color: outline,
+    weight: 2,
+    opacity: 0.9,
+    fillColor: '#f5cf32',
+    fillOpacity: 0.5,
+    className,
+  }).addTo(locationHighlightLayer);
+}
+
+function syncLocationHighlights() {
+  if (!map || !locationHighlightLayer) return;
+  locationHighlightLayer.clearLayers();
+  if (props.pickup && !(centerPicking.value && props.selection === 'pickup'))
+    addLocationHighlight(props.pickup, props.pickupPlace, 'pickup');
+  if (props.destination && !(centerPicking.value && props.selection === 'destination'))
+    addLocationHighlight(props.destination, props.destinationPlace, 'destination');
+  if (centerPicking.value && props.selection && props.previewTarget === props.selection && props.previewPoint)
+    addLocationHighlight(props.previewPoint, props.previewPlace, props.selection, false);
 }
 
 function showNotice(message: string, autoHide = false) {
@@ -170,21 +279,26 @@ function showNotice(message: string, autoHide = false) {
   if (autoHide) noticeTimer = setTimeout(() => { if (alive) notice.value = ''; }, 5500);
 }
 
-function updateMarker(point: LocationPoint | null, marker: L.Marker | null, letter: string, target: Selection): L.Marker | null {
+function updateMarker(point: LocationPoint | null, marker: L.Marker | null, target: Selection): L.Marker | null {
   if (!point) { marker?.remove(); return null; }
+  const label = target === 'pickup' ? 'lokasi jemput' : 'tujuan';
   if (!marker) {
     marker = L.marker([point.lat, point.lng], {
-      icon: icon(letter),
+      icon: icon(target),
       draggable: !props.busy,
-      title: `${letter === 'A' ? 'Titik A: penjemputan' : 'Titik B: tujuan'}. Marker dapat digeser.`,
-      alt: letter === 'A' ? 'Lokasi penjemputan yang dapat digeser' : 'Lokasi tujuan yang dapat digeser',
+      title: `${target === 'pickup' ? 'Lokasi penjemputan' : 'Lokasi tujuan'}. Marker dapat digeser.`,
+      alt: target === 'pickup' ? 'Lokasi penjemputan yang dapat digeser' : 'Lokasi tujuan yang dapat digeser',
     }).addTo(map);
-    marker.on('dragstart', () => { showNotice(`Geser marker ${letter}, lalu lepaskan pada titik yang tepat.`); });
+    marker.on('dragstart', () => {
+      marker?.getElement()?.classList.add('dragging-point-marker');
+      showNotice(`Geser marker ${label}; crosshair menunjukkan koordinat tepatnya.`);
+    });
     marker.on('dragend', () => {
+      marker?.getElement()?.classList.remove('dragging-point-marker');
       if (!props.busy && marker) {
         const movedPoint = marker.getLatLng();
         emit('choose', { lat: movedPoint.lat, lng: movedPoint.lng }, target);
-        showNotice(`Marker ${letter} diperbarui. Nama lokasi sedang dicari.`, true);
+        showNotice(`Marker ${label} diperbarui. Nama lokasi sedang dicari.`, true);
       }
     });
   } else marker.setLatLng([point.lat, point.lng]);
@@ -193,9 +307,10 @@ function updateMarker(point: LocationPoint | null, marker: L.Marker | null, lett
 
 function syncMarkers() {
   if (!map) return;
-  pickupMarker = updateMarker(centerPicking.value && props.selection === 'pickup' ? null : props.pickup, pickupMarker, 'A', 'pickup');
-  destinationMarker = updateMarker(centerPicking.value && props.selection === 'destination' ? null : props.destination, destinationMarker, 'B', 'destination');
+  pickupMarker = updateMarker(centerPicking.value && props.selection === 'pickup' ? null : props.pickup, pickupMarker, 'pickup');
+  destinationMarker = updateMarker(centerPicking.value && props.selection === 'destination' ? null : props.destination, destinationMarker, 'destination');
   syncReferenceVisuals();
+  syncLocationHighlights();
 }
 
 function syncReferenceVisuals() {
@@ -262,7 +377,7 @@ async function locate(target?: Selection, useAsPoint = false): Promise<boolean> 
       const pointIsStillEmpty = target !== 'pickup' || !props.pickup;
       if (target && useAsPoint && pointIsStillEmpty) {
         emit('choose', point, target);
-        showNotice(`Lokasi perangkat digunakan sebagai titik ${target === 'pickup' ? 'A' : 'B'}. Marker dapat digeser.`, true);
+        showNotice(`Lokasi perangkat digunakan sebagai ${target === 'pickup' ? 'lokasi jemput' : 'tujuan'}. Marker dapat digeser.`, true);
       } else showNotice('Lokasi Anda ditemukan. Ketuk peta atau geser marker untuk menyesuaikan.', true);
       resolve(true);
     }, error => {
@@ -295,13 +410,22 @@ function confirmCenterSelection() {
   const target = props.selection;
   if (!centerPicking.value || !target || !centerPoint.value || mapMoving.value) return false;
   emit('choose', { ...centerPoint.value }, target);
-  showNotice(`Titik ${target === 'pickup' ? 'jemput A' : 'tujuan B'} dipilih. Marker dapat digeser untuk memperbaiki lokasi.`, true);
+  showNotice(`${target === 'pickup' ? 'Lokasi jemput' : 'Tujuan'} dipilih. Marker dapat digeser untuk memperbaiki lokasi.`, true);
   return true;
 }
 
 defineExpose({ fitMap, locateForSelection, beginSelection, confirmCenterSelection });
 
-watch(() => [props.pickup, props.destination, props.selection], syncMarkers);
+watch(() => [
+  props.pickup,
+  props.destination,
+  props.pickupPlace,
+  props.destinationPlace,
+  props.previewPoint,
+  props.previewPlace,
+  props.previewTarget,
+  props.selection,
+], syncMarkers);
 watch(() => props.selection, target => {
   mapMoving.value = false;
   if (target && !props.busy) publishCenterPreview();
@@ -327,6 +451,13 @@ watch(() => props.estimate, estimate => {
 
 onMounted(() => {
   map = L.map(container.value!, { zoomControl: false, scrollWheelZoom: false }).setView([-8.4932, 140.4018], 14);
+  map.createPane('selectionHighlights');
+  const highlightPane = map.getPane('selectionHighlights');
+  if (highlightPane) {
+    highlightPane.style.zIndex = '380';
+    highlightPane.style.pointerEvents = 'none';
+  }
+  locationHighlightLayer = L.layerGroup().addTo(map);
   surveyPlaceLayer = L.layerGroup().addTo(map);
   L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap</a> contributors' }).addTo(map).on('tileerror', () => { showNotice('Sebagian peta belum dimuat. Periksa koneksi internet Anda.'); });
   L.control.zoom({ position: 'bottomright' }).addTo(map);
@@ -346,6 +477,7 @@ onMounted(() => {
       pinSettling.value = true;
       settleTimer = setTimeout(() => { if (alive) pinSettling.value = false; }, 360);
     }
+    renderSurveyPlaces(loadedSurveyPlaces);
     scheduleSurveyPlaces();
   });
   map.on('click', event => {
@@ -353,7 +485,10 @@ onMounted(() => {
     if (centerPicking.value) map.panTo(event.latlng);
     else emit('choose', { lat: event.latlng.lat, lng: event.latlng.lng }, props.selection);
   });
-  observer = new ResizeObserver(() => map.invalidateSize());
+  observer = new ResizeObserver(() => {
+    map.invalidateSize();
+    renderSurveyPlaces(loadedSurveyPlaces);
+  });
   observer.observe(container.value!);
   syncMarkers();
   scheduleSurveyPlaces();
@@ -376,16 +511,29 @@ onBeforeUnmount(() => {
     <div class="map-actions"><button type="button" :disabled="locationPending" aria-label="Tampilkan lokasi saya" title="Lokasi saya" @click="locate()"><LoaderCircle v-if="locationPending" :size="19" class="spinner" /><LocateFixed v-else :size="19" /></button><button type="button" aria-label="Lihat seluruh rute" title="Lihat seluruh rute" @click="fitMap"><Maximize2 :size="18" /></button></div>
     <div v-if="notice" class="map-notice" role="status">{{ notice }} <button aria-label="Tutup pemberitahuan peta" @click="notice = ''">×</button></div>
     <div v-if="centerPicking" class="center-picker-target" :class="[selection === 'pickup' ? 'pickup' : 'destination', { moving: mapMoving, settling: pinSettling }]" aria-hidden="true">
-      <svg class="center-picker-icon" viewBox="0 0 56 78">
+      <svg class="center-picker-icon" viewBox="0 0 56 74">
+        <defs>
+          <linearGradient id="center-picker-gradient" x1="10" y1="5" x2="46" y2="49" gradientUnits="userSpaceOnUse">
+            <stop class="center-picker-gradient-light" />
+            <stop class="center-picker-gradient-dark" offset="1" />
+          </linearGradient>
+        </defs>
         <g class="center-picker-guide">
-          <path class="center-picker-guide-shadow" d="M28 43V72" />
-          <path class="center-picker-guide-line" d="M28 43V72" />
+          <path class="center-picker-guide-shadow" :d="selection === 'pickup' ? 'M28 34V70' : 'M28 47V70'" />
+          <path class="center-picker-guide-line" :d="selection === 'pickup' ? 'M28 34V70' : 'M28 47V70'" />
         </g>
         <g class="center-picker-body">
-          <path class="center-picker-shape" d="M28 2C15.3 2 5 12.3 5 25c0 15.5 15.7 26.5 23 31 7.3-4.5 23-15.5 23-31C51 12.3 40.7 2 28 2Z" />
-          <text x="28" y="31">{{ selection === 'pickup' ? 'A' : 'B' }}</text>
+          <template v-if="selection === 'pickup'">
+            <circle class="center-picker-shape" cx="28" cy="23" r="17" />
+            <ellipse class="center-picker-highlight" cx="21" cy="15" rx="7" ry="3.5" transform="rotate(-24 21 15)" />
+          </template>
+          <template v-else>
+            <path class="center-picker-shape" d="M28 2C15.7 2 6 11.6 6 23.8c0 13.2 13.5 22 22 27.4 8.5-5.4 22-14.2 22-27.4C50 11.6 40.3 2 28 2Z" />
+            <ellipse class="center-picker-highlight" cx="20" cy="12" rx="8.5" ry="4.2" transform="rotate(-24 20 12)" />
+          </template>
+          <circle class="center-picker-core" cx="28" :cy="selection === 'pickup' ? 23 : 22" :r="selection === 'pickup' ? 5 : 5.5" />
         </g>
-        <circle class="center-picker-dot" cx="28" cy="72" r="3.8" />
+        <circle class="center-picker-dot" cx="28" cy="70" r="3.5" />
       </svg>
     </div>
     <div v-else-if="busy || estimate || (!pickup && !destination)" class="map-hint" aria-live="polite">

@@ -2,7 +2,9 @@
 import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue';
 import { Check, LoaderCircle, MapPin, WandSparkles, X } from 'lucide-vue-next';
 import AdminPlaceMap from './AdminPlaceMap.vue';
+import PlaceIconGlyph from '../PlaceIconGlyph.vue';
 import { reverseAdminAddress, type AdminPlace, type AdminPlaceInput } from '../../services/admin.service';
+import { iconForCategory, placeIconOptions } from '../../utils/place-icons';
 
 const props = defineProps<{ place: AdminPlace | null; center: { lat: number; lng: number }; saving: boolean; serverError: string }>();
 const emit = defineEmits<{ close: []; save: [value: AdminPlaceInput] }>();
@@ -10,10 +12,11 @@ const categories = [
   ['medical', 'Kesehatan'], ['education', 'Pendidikan'], ['worship', 'Tempat ibadah'],
   ['food', 'Makanan & minuman'], ['lodging', 'Penginapan'], ['finance', 'Bank & keuangan'],
   ['automotive', 'Otomotif'], ['government', 'Pemerintahan'], ['transport', 'Transportasi'],
-  ['retail', 'Toko & belanja'], ['service', 'Jasa'], ['other', 'Lainnya'],
+  ['retail', 'Toko & belanja'], ['service', 'Jasa'], ['sports', 'Olahraga'],
+  ['tourism', 'Wisata & rekreasi'], ['business', 'Bisnis & profesional'], ['other', 'Lainnya'],
 ];
 const form = reactive({
-  name: '', category: 'other', address: '', lat: props.center.lat, lng: props.center.lng,
+  name: '', category: 'other', iconType: 'other', address: '', lat: props.center.lat, lng: props.center.lng,
   rating: '' as number | '', reviewCount: '' as number | '', phone: '', website: '',
   openingHours: '', googleMapsUrl: '', searchKeyword: '', searchArea: 'Merauke', active: true,
 });
@@ -32,13 +35,14 @@ function fill(place: AdminPlace | null) {
   Object.assign(form, place ? {
     name: place.name,
     category: place.category,
+    iconType: place.iconType,
     address: place.addressSource === 'missing' ? '' : place.address,
     lat: place.lat, lng: place.lng, rating: place.rating ?? '', reviewCount: place.reviewCount ?? '',
     phone: place.phone ?? '', website: place.website ?? '', openingHours: place.openingHours ?? '',
     googleMapsUrl: place.googleMapsUrl ?? '', searchKeyword: place.searchKeyword ?? '',
     searchArea: place.searchArea ?? 'Merauke', active: place.active,
   } : {
-    name: '', category: 'other', address: '', lat: props.center.lat, lng: props.center.lng,
+    name: '', category: 'other', iconType: 'other', address: '', lat: props.center.lat, lng: props.center.lng,
     rating: '', reviewCount: '', phone: '', website: '', openingHours: '', googleMapsUrl: '',
     searchKeyword: '', searchArea: 'Merauke', active: true,
   });
@@ -46,6 +50,9 @@ function fill(place: AdminPlace | null) {
   addressLookupError.value = false;
 }
 watch(() => props.place, fill, { immediate: true });
+watch(() => form.category, (category, previous) => {
+  if (!form.iconType || form.iconType === iconForCategory(previous)) form.iconType = iconForCategory(category);
+});
 
 async function lookupAddress() {
   if (addressLookupBusy.value || !Number.isFinite(Number(form.lat)) || !Number.isFinite(Number(form.lng))) return;
@@ -73,7 +80,7 @@ onBeforeUnmount(() => { if (addressLookupTimer) clearTimeout(addressLookupTimer)
 function submit() {
   if (localError.value || props.saving) return;
   emit('save', {
-    name: form.name.trim(), category: form.category, address: form.address.trim(),
+    name: form.name.trim(), category: form.category, iconType: form.iconType, address: form.address.trim(),
     lat: Number(form.lat), lng: Number(form.lng),
     rating: form.rating === '' ? null : Number(form.rating),
     reviewCount: form.reviewCount === '' ? null : Number(form.reviewCount),
@@ -98,6 +105,7 @@ function submit() {
           <div class="admin-form-grid">
             <label class="wide">Nama tempat <b>*</b><input v-model="form.name" maxlength="160" placeholder="Contoh: Warung Mie Ayam Mandala" /></label>
             <label>Kategori <b>*</b><select v-model="form.category"><option v-for="item in categories" :key="item[0]" :value="item[0]">{{ item[1] }}</option></select></label>
+            <label>Jenis ikon <b>*</b><span class="admin-icon-select"><PlaceIconGlyph :type="form.iconType" :category="form.category" :size="17" /><select v-model="form.iconType"><option v-for="item in placeIconOptions" :key="item.value" :value="item.value">{{ item.label }}</option></select></span></label>
             <label>Area pencarian<input v-model="form.searchArea" maxlength="160" placeholder="Merauke" /></label>
             <label class="wide"><span class="admin-field-title">Alamat<button type="button" class="admin-address-lookup" :disabled="addressLookupBusy" @click="lookupAddress"><LoaderCircle v-if="addressLookupBusy" :size="13" class="spin" /><WandSparkles v-else :size="13" />{{ addressLookupBusy ? 'Mencari…' : 'Isi dari koordinat' }}</button></span><textarea v-model="form.address" rows="2" maxlength="500" placeholder="Nama jalan, kelurahan, distrik" /><small v-if="addressLookupMessage" class="admin-address-lookup-message" :class="{ error: addressLookupError }">{{ addressLookupMessage }}</small></label>
             <label>Kata kunci<input v-model="form.searchKeyword" maxlength="160" placeholder="bakso, klinik, sekolah" /></label>
