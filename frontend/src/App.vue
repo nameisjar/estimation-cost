@@ -213,6 +213,33 @@ const destinationDisplayAddress = computed(() => {
       : "Cari tempat atau pilih di peta")
   );
 });
+const mobileSelectionLabel = computed(() =>
+  selection.value === "pickup" ? "Lokasi jemput" : "Lokasi tujuan"
+);
+const mobileSelectionName = computed(() => {
+  const target = selection.value;
+  if (!target) return "";
+  if (
+    centerPreviewTarget.value === target &&
+    centerPreviewPlace.value
+  ) return centerPreviewPlace.value.name;
+  if (resolvingCenterPreview.value) return "Mencari lokasi…";
+  return target === "pickup" ? pickupDisplayName.value : destinationDisplayName.value;
+});
+const mobileSelectionAddress = computed(() => {
+  const target = selection.value;
+  if (!target) return "";
+  if (
+    centerPreviewTarget.value === target &&
+    centerPreviewPlace.value
+  ) return centerPreviewPlace.value.address;
+  if (centerPreviewPoint.value) {
+    return resolvingCenterPreview.value
+      ? "Nama dan alamat akan muncul sesaat lagi"
+      : formatPoint(centerPreviewPoint.value);
+  }
+  return "Geser peta sampai pin berada di lokasi yang tepat";
+});
 const bookingLinks = computed(() =>
   estimate.value && settings.value && pickup.value && destination.value
     ? whatsappLinks(
@@ -928,7 +955,13 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="site-shell" :class="{ 'with-mobile-action': showMobileAction }">
+  <div
+    class="site-shell"
+    :class="{
+      'with-mobile-action': showMobileAction,
+      'with-mobile-selection': showMobileAction && !!selection,
+    }"
+  >
     <header class="site-header">
       <a class="brand" href="/" aria-label="AntarFix Estimator beranda">
         <img
@@ -1439,10 +1472,33 @@ onBeforeUnmount(() => {
     <div
       v-if="showMobileAction"
       class="mobile-action-bar"
+      :class="{ 'is-selecting': !!selection }"
       aria-label="Langkah berikutnya"
     >
       <div class="mobile-action-inner">
-        <div class="mobile-action-meta">
+        <div
+          v-if="selection"
+          class="mobile-selection-summary"
+          :class="`is-${selection}`"
+          role="status"
+          aria-live="polite"
+          :aria-busy="resolvingCenterPreview"
+        >
+          <span class="mobile-selection-icon" aria-hidden="true">
+            <LoaderCircle
+              v-if="resolvingCenterPreview"
+              :size="18"
+              class="spinner"
+            />
+            <LocationMarkerGlyph v-else :target="selection" :size="18" />
+          </span>
+          <span class="mobile-selection-copy">
+            <small>{{ mobileSelectionLabel }}</small>
+            <strong>{{ mobileSelectionName }}</strong>
+            <span>{{ mobileSelectionAddress }}</span>
+          </span>
+        </div>
+        <div v-else class="mobile-action-meta">
           <span>{{ mobileActionHint }}</span
           ><small>{{ selectedCount }}/2 lokasi dipilih</small>
         </div>

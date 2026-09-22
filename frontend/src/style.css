@@ -331,3 +331,27 @@ body:has(.place-picker-backdrop){overflow:hidden}
   .picker-manual>summary{min-height:54px;font-size:11.5px}
   .picker-attribution{margin-top:3px}
 }
+
+/* Keep the live map selection visible beside the mobile confirmation action. */
+.mobile-selection-summary{min-width:0;flex:1;display:grid;grid-template-columns:38px minmax(0,1fr);align-items:center;gap:10px;text-align:left}
+.mobile-selection-icon{width:38px;height:38px;display:grid;place-items:center;border-radius:50%;background:#eaf3fb;color:#07509a}
+.mobile-selection-summary.is-destination .mobile-selection-icon{background:#fff0e8;color:#f45108}
+.mobile-selection-copy{display:block;min-width:0}
+.mobile-selection-copy>small,.mobile-selection-copy>strong,.mobile-selection-copy>span{display:block}
+.mobile-selection-copy>small{margin-bottom:2px;color:#637b92;font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:.055em}
+.mobile-selection-copy>strong{overflow:hidden;color:#0b315b;font-size:11px;font-weight:750;line-height:1.35;text-overflow:ellipsis;white-space:nowrap}
+.mobile-selection-copy>span{display:-webkit-box;margin-top:2px;overflow:hidden;color:#71849a;font-size:9px;line-height:1.35;-webkit-box-orient:vertical;-webkit-line-clamp:2}
+@media(max-width:800px){
+  .with-mobile-selection{padding-bottom:126px}
+  .mobile-action-bar.is-selecting .mobile-action-inner{align-items:center}
+}
+@media(max-width:540px){
+  .with-mobile-selection{padding-bottom:calc(174px + env(safe-area-inset-bottom))}
+  .mobile-action-bar.is-selecting{padding-top:9px}
+  .mobile-action-bar.is-selecting .mobile-action-inner{display:block}
+  .mobile-selection-summary{grid-template-columns:34px minmax(0,1fr);gap:9px;margin:0 2px 9px;padding-bottom:9px;border-bottom:1px solid #e4ebf2}
+  .mobile-selection-icon{width:34px;height:34px}
+  .mobile-selection-copy>small{font-size:8px}
+  .mobile-selection-copy>strong{font-size:11.5px}
+  .mobile-selection-copy>span{font-size:9.5px;-webkit-line-clamp:1}
+}
