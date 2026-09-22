@@ -7,9 +7,9 @@ import {
   ChevronDown,
   ChevronRight,
   Clock3,
-  Crosshair,
   Info,
   LoaderCircle,
+  Map as MapIcon,
   MapPin,
   Package,
   RotateCcw,
@@ -1355,8 +1355,8 @@ onBeforeUnmount(() => {
         </form>
 
         <button type="button" class="pick-map-button" @click="pickOnMap">
-          <Crosshair :size="18" aria-hidden="true" />
-          <strong>Tentukan lewat peta</strong>
+          <MapIcon :size="19" aria-hidden="true" />
+          <strong>Pilih titik di peta</strong>
           <ChevronRight :size="17" aria-hidden="true" />
         </button>
 
