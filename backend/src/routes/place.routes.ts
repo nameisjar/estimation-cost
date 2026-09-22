@@ -28,6 +28,16 @@ export function placeRoutes(repository?: PlaceRepository) {
     } catch (error) { next(error); }
   });
 
+  router.get('/places/nearest', async (req, res, next) => {
+    try {
+      const point = validatePoint(
+        { lat: Number(req.query.lat), lng: Number(req.query.lng) },
+        'lokasi terdekat',
+      );
+      res.json({ success: true, data: repository ? await repository.nearest(point) : null });
+    } catch (error) { next(error); }
+  });
+
   router.get('/places/map', async (req, res, next) => {
     try {
       if (!repository) {

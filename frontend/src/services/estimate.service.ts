@@ -1,5 +1,12 @@
 import type { LocationPoint, Estimate, AppConfig, GeocodedPlace, MapPlace, BuildingFootprint } from '../types';
 const baseUrl = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
+const locationAtCache = new Map<string, {
+  expiresAt: number;
+  value: { building: BuildingFootprint | null; place: GeocodedPlace | null };
+}>();
+function pointCacheKey(point: LocationPoint) {
+  return `${point.lat.toFixed(5)},${point.lng.toFixed(5)}`;
+}
 export function isValidPoint(point: LocationPoint | null): point is LocationPoint {
   return !!point && Number.isFinite(point.lat) && Number.isFinite(point.lng) && Math.abs(point.lat) <= 90 && Math.abs(point.lng) <= 180;
 }
@@ -28,20 +35,42 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   }
 }
 export function getConfig() { return request<AppConfig>('/api/config'); }
-export function reverseGeocode(point: LocationPoint, includeGeometry = false) {
+export function reverseGeocode(point: LocationPoint, includeGeometry = false, signal?: AbortSignal) {
   const params = new URLSearchParams({ lat: String(point.lat), lng: String(point.lng) });
   if (includeGeometry) params.set('geometry', '1');
-  return request<GeocodedPlace | null>(`/api/geocode/reverse?${params}`);
+  return request<GeocodedPlace | null>(`/api/geocode/reverse?${params}`, { signal });
 }
-export async function getBuildingAt(point: LocationPoint) {
+export async function getBuildingAt(point: LocationPoint, signal?: AbortSignal) {
   const params = new URLSearchParams({ lat: String(point.lat), lng: String(point.lng) });
   const path = `/api/buildings/at?${params}`;
   try {
-    return await request<BuildingFootprint | null>(path);
-  } catch {
+    return await request<BuildingFootprint | null>(path, { signal });
+  } catch (error) {
+    if (signal?.aborted) throw error;
     await new Promise(resolve => setTimeout(resolve, 250));
-    return request<BuildingFootprint | null>(path);
+    return request<BuildingFootprint | null>(path, { signal });
   }
+}
+export function getLocalPlaceAt(point: LocationPoint, signal?: AbortSignal) {
+  const params = new URLSearchParams({ lat: String(point.lat), lng: String(point.lng) });
+  return request<GeocodedPlace | null>(`/api/places/nearest?${params}`, { signal });
+}
+export async function getLocationAt(point: LocationPoint, signal?: AbortSignal) {
+  const cacheKey = pointCacheKey(point);
+  const cached = locationAtCache.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now()) return cached.value;
+  if (cached) locationAtCache.delete(cacheKey);
+  const params = new URLSearchParams({ lat: String(point.lat), lng: String(point.lng) });
+  const value = await request<{ building: BuildingFootprint | null; place: GeocodedPlace | null }>(
+    `/api/locations/at?${params}`,
+    { signal },
+  );
+  if (!signal?.aborted) {
+    locationAtCache.set(cacheKey, { expiresAt: Date.now() + 120_000, value });
+    if (locationAtCache.size > 200)
+      locationAtCache.delete(locationAtCache.keys().next().value!);
+  }
+  return value;
 }
 export function searchPlaces(query: string, near?: LocationPoint | null, signal?: AbortSignal) {
   const params = new URLSearchParams({ q: query.trim() });
@@ -61,7 +90,7 @@ export function suggestPlaces(query: string, near?: LocationPoint | null, signal
   }
   return request<GeocodedPlace[]>(`/api/places/suggestions?${params}`, { signal });
 }
-export function getMapPlaces(bounds: { north: number; south: number; east: number; west: number }, zoom: number, limit = 100) {
+export function getMapPlaces(bounds: { north: number; south: number; east: number; west: number }, zoom: number, limit = 100, signal?: AbortSignal) {
   const params = new URLSearchParams({
     north: String(bounds.north),
     south: String(bounds.south),
@@ -70,7 +99,7 @@ export function getMapPlaces(bounds: { north: number; south: number; east: numbe
     zoom: String(Math.round(zoom)),
     limit: String(Math.min(Math.max(limit, 1), 200)),
   });
-  return request<MapPlace[]>(`/api/places/map?${params}`);
+  return request<MapPlace[]>(`/api/places/map?${params}`, { signal });
 }
 export function estimateCost(pickup: LocationPoint, destination: LocationPoint) {
   if (!isValidPoint(pickup) || !isValidPoint(destination)) throw new Error('Pilih titik jemput dan tujuan yang valid.');

@@ -26,6 +26,7 @@ import {
   estimateCost,
   getBuildingAt,
   getConfig,
+  getLocationAt,
   isValidPoint,
   reverseGeocode,
   searchPlaces,
@@ -107,6 +108,8 @@ let searchController: AbortController | undefined;
 const suggestionCache = new Map<string, GeocodedPlace[]>();
 let centerPreviewVersion = 0;
 let centerPreviewTimer: ReturnType<typeof setTimeout> | undefined;
+let centerPreviewController: AbortController | undefined;
+const placeResolutionControllers: Partial<Record<Selection, AbortController>> = {};
 let whatsappFallbackTimer: number | undefined;
 let whatsappOpeningResetTimer: number | undefined;
 let whatsappVisibilityHandler: (() => void) | undefined;
@@ -556,11 +559,14 @@ async function resolvePlace(
   version: number,
   preserveExistingPlace = false,
 ) {
+  placeResolutionControllers[target]?.abort();
+  const controller = new AbortController();
+  placeResolutionControllers[target] = controller;
   resolvingPlace.value[target] = true;
   try {
     const [placeResult, buildingResult] = await Promise.allSettled([
-      reverseGeocode(point),
-      getBuildingAt(point),
+      reverseGeocode(point, false, controller.signal),
+      getBuildingAt(point, controller.signal),
     ]);
     if (geocodeVersion[target] === version) {
       const existing = target === "pickup" ? pickupPlace.value : destinationPlace.value;
@@ -578,6 +584,8 @@ async function resolvePlace(
   } catch {
     if (geocodeVersion[target] === version) setPlace(target, null);
   } finally {
+    if (placeResolutionControllers[target] === controller)
+      delete placeResolutionControllers[target];
     if (geocodeVersion[target] === version) resolvingPlace.value[target] = false;
   }
 }
@@ -585,6 +593,8 @@ async function resolvePlace(
 function clearCenterPreview() {
   centerPreviewVersion++;
   if (centerPreviewTimer) clearTimeout(centerPreviewTimer);
+  centerPreviewController?.abort();
+  centerPreviewController = undefined;
   centerPreviewTimer = undefined;
   centerPreviewTarget.value = null;
   centerPreviewPoint.value = null;
@@ -596,6 +606,8 @@ function startCenterPreview(target: Selection) {
   if (selection.value !== target) return;
   centerPreviewVersion++;
   if (centerPreviewTimer) clearTimeout(centerPreviewTimer);
+  centerPreviewController?.abort();
+  centerPreviewController = undefined;
   centerPreviewTimer = undefined;
   centerPreviewTarget.value = target;
   centerPreviewPoint.value = null;
@@ -607,39 +619,71 @@ function previewCenter(point: LocationPoint, target: Selection) {
   if (selection.value !== target || !isValidPoint(point)) return;
   const version = ++centerPreviewVersion;
   if (centerPreviewTimer) clearTimeout(centerPreviewTimer);
+  centerPreviewController?.abort();
+  const controller = new AbortController();
+  centerPreviewController = controller;
   centerPreviewTarget.value = target;
   centerPreviewPoint.value = point;
   centerPreviewPlace.value = null;
   resolvingCenterPreview.value = true;
   let building: BuildingFootprint | null = null;
-  let place: GeocodedPlace | null = null;
+  let localPlace: GeocodedPlace | null = null;
+  let fallbackPlace: GeocodedPlace | null = null;
   let buildingSettled = false;
-  let placeSettled = false;
-  const isCurrent = () => centerPreviewVersion === version && selection.value === target;
+  let localSettled = false;
+  let fallbackSettled = false;
+  let fallbackAllowed = false;
+  let fallbackStarted = false;
+  const isCurrent = () =>
+    centerPreviewVersion === version && selection.value === target && !controller.signal.aborted;
   const applyPreview = () => {
     if (!isCurrent()) return;
-    const resolved = placeWithBuilding(point, target, place, building);
-    if (resolved || (buildingSettled && placeSettled)) centerPreviewPlace.value = resolved;
-    resolvingCenterPreview.value = !(buildingSettled && placeSettled);
+    const resolved = placeWithBuilding(point, target, localPlace || fallbackPlace, building);
+    if (resolved || (buildingSettled && localSettled && fallbackSettled))
+      centerPreviewPlace.value = resolved;
+    const localResolutionReady = !!localPlace || !!building?.name || !!building?.address;
+    resolvingCenterPreview.value = !(
+      buildingSettled && localSettled && (localResolutionReady || fallbackSettled)
+    );
+  };
+  const maybeStartFallback = () => {
+    if (!isCurrent() || !fallbackAllowed || fallbackStarted || !buildingSettled || !localSettled)
+      return;
+    if (localPlace) {
+      fallbackSettled = true;
+      applyPreview();
+      return;
+    }
+    fallbackStarted = true;
+    void reverseGeocode(point, false, controller.signal)
+      .then(result => { fallbackPlace = result; })
+      .catch(() => { fallbackPlace = null; })
+      .finally(() => {
+        fallbackSettled = true;
+        applyPreview();
+      });
   };
 
-  void getBuildingAt(point)
-    .then(result => { building = result; })
-    .catch(() => { building = null; })
+  void getLocationAt(point, controller.signal)
+    .then(result => {
+      building = result.building;
+      localPlace = result.place;
+    })
+    .catch(() => {
+      building = null;
+      localPlace = null;
+    })
     .finally(() => {
       buildingSettled = true;
+      localSettled = true;
       applyPreview();
+      maybeStartFallback();
     });
 
   centerPreviewTimer = setTimeout(() => {
-    void reverseGeocode(point)
-      .then(result => { place = result; })
-      .catch(() => { place = null; })
-      .finally(() => {
-        placeSettled = true;
-        applyPreview();
-      });
-  }, 450);
+    fallbackAllowed = true;
+    maybeStartFallback();
+  }, 150);
 }
 
 function pointsMatch(a: LocationPoint | null, b: LocationPoint) {
@@ -890,6 +934,8 @@ async function swapPoints() {
 function reset() {
   if (busy.value) return;
   clearCenterPreview();
+  placeResolutionControllers.pickup?.abort();
+  placeResolutionControllers.destination?.abort();
   cancelPlaceSearch();
   pickup.value = null;
   destination.value = null;

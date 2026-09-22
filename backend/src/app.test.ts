@@ -50,6 +50,7 @@ test('API health, pricing authority, geometry, errors and CORS', async () => {
 test('map places and local suggestions endpoints return surveyed places and validate input', async () => {
   let receivedZoom = 0;
   let receivedBuildingPoint = { lat: 0, lng: 0 };
+  let receivedNearestPoint = { lat: 0, lng: 0 };
   let receivedSuggestion: { query: string; near?: { lat: number; lng: number }; limit?: number } | undefined;
   const app = createApp(
     { async route() { return { distanceKm: 1, durationMinutes: 2 }; } },
@@ -59,7 +60,10 @@ test('map places and local suggestions endpoints return surveyed places and vali
         receivedSuggestion = { query, near, limit };
         return [{ id: 'survey-1', name: 'Warung Survei', address: 'Merauke', lat: -8.49, lng: 140.4, source: 'antarfix' }];
       },
-      async nearest() { return null; },
+      async nearest(point) {
+        receivedNearestPoint = point;
+        return { id: 'survey-1', name: 'Warung Survei', address: 'Merauke', lat: -8.49, lng: 140.4, source: 'antarfix' };
+      },
       async inBounds(bounds, zoom) {
         assert.deepEqual(bounds, { north: -8.4, south: -8.6, east: 140.5, west: 140.3 });
         receivedZoom = zoom;
@@ -93,6 +97,11 @@ test('map places and local suggestions endpoints return surveyed places and vali
     assert.equal(suggestions.status, 200);
     assert.deepEqual(receivedSuggestion, { query: 'wa', near: { lat: -8.49, lng: 140.4 }, limit: 6 });
     assert.equal(suggestionBody.data[0].source, 'antarfix');
+    const nearest = await fetch(`${base}/api/places/nearest?lat=-8.49&lng=140.4`);
+    const nearestBody = await nearest.json();
+    assert.equal(nearest.status, 200);
+    assert.deepEqual(receivedNearestPoint, { lat: -8.49, lng: 140.4 });
+    assert.equal(nearestBody.data.name, 'Warung Survei');
     const building = await fetch(`${base}/api/buildings/at?lat=-8.49&lng=140.4`);
     const buildingBody = await building.json();
     assert.equal(building.status, 200);
@@ -100,11 +109,21 @@ test('map places and local suggestions endpoints return surveyed places and vali
     assert.deepEqual(receivedBuildingPoint, { lat: -8.49, lng: 140.4 });
     assert.equal(buildingBody.data.id, 'way/123');
     assert.equal(buildingBody.data.geometry.type, 'Polygon');
+    const location = await fetch(`${base}/api/locations/at?lat=-8.49&lng=140.4`);
+    const locationBody = await location.json();
+    assert.equal(location.status, 200);
+    assert.equal(locationBody.data.place.name, 'Warung Survei');
+    assert.equal(locationBody.data.building.id, 'way/123');
+    assert.equal(location.headers.get('ratelimit-limit'), String(Math.max(config.rateLimit.maxRequests * 4, 120)));
     const invalid = await fetch(`${base}/api/places/map?north=-8.6&south=-8.4&east=140.5&west=140.3&zoom=16`);
     assert.equal(invalid.status, 400);
     const invalidSuggestion = await fetch(`${base}/api/places/suggestions?q=w`);
     assert.equal(invalidSuggestion.status, 400);
+    const invalidNearest = await fetch(`${base}/api/places/nearest?lat=-91&lng=140.4`);
+    assert.equal(invalidNearest.status, 400);
     const invalidBuilding = await fetch(`${base}/api/buildings/at?lat=91&lng=140.4`);
     assert.equal(invalidBuilding.status, 400);
+    const invalidLocation = await fetch(`${base}/api/locations/at?lat=91&lng=140.4`);
+    assert.equal(invalidLocation.status, 400);
   } finally { await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve())); }
 });

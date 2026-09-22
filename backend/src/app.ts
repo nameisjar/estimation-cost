@@ -76,11 +76,11 @@ export function createApp(
   } }));
   app.use(express.json({ limit: '8kb' }));
   app.get('/health', (_req, res) => { res.json({ success: true, message: 'AntarFix Estimator API is running' }); });
-  app.use('/api/buildings', createRateLimiter({
+  app.use(['/api/buildings', '/api/locations'], createRateLimiter({
     windowMs: config.rateLimit.windowMs,
     maxRequests: Math.max(config.rateLimit.maxRequests * 4, 120),
   }));
-  app.use('/api', buildingRoutes(buildingRepository));
+  app.use('/api', buildingRoutes(buildingRepository, placeRepository));
   app.use('/api', createRateLimiter(config.rateLimit));
   app.get('/api/config', (_req, res) => { res.json({ success: true, data: { pricing: config.pricing, whatsappNumber: config.whatsappNumber, serviceArea: config.serviceLimits } }); });
   app.use('/api', estimateRoutes(new RoutingService(provider), new PricingService(config.pricing), new ServiceAreaService(config.serviceLimits)));

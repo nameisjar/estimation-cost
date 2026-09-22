@@ -41,6 +41,7 @@ let observer: ResizeObserver;
 let noticeTimer: ReturnType<typeof setTimeout> | undefined;
 let settleTimer: ReturnType<typeof setTimeout> | undefined;
 let placeLoadTimer: ReturnType<typeof setTimeout> | undefined;
+let placeLoadController: AbortController | undefined;
 let placeLoadVersion = 0;
 let loadedSurveyPlaces: MapPlace[] = [];
 let visibleLabelIds = new Set<string>();
@@ -179,6 +180,7 @@ function renderSurveyPlaces(places: MapPlace[]) {
 function scheduleSurveyPlaces() {
   if (!map || !surveyPlaceLayer) return;
   if (placeLoadTimer) clearTimeout(placeLoadTimer);
+  placeLoadController?.abort();
   const version = ++placeLoadVersion;
   placeLoadTimer = setTimeout(async () => {
     if (!alive || !map) return;
@@ -190,11 +192,13 @@ function scheduleSurveyPlaces() {
       return;
     }
     const bounds = map.getBounds();
+    const controller = new AbortController();
+    placeLoadController = controller;
     try {
       const places = await getMapPlaces({
         north: bounds.getNorth(), south: bounds.getSouth(),
         east: bounds.getEast(), west: bounds.getWest(),
-      }, zoom, rules.requestLimit);
+      }, zoom, rules.requestLimit, controller.signal);
       if (alive && version === placeLoadVersion) {
         loadedSurveyPlaces = places;
         renderSurveyPlaces(places);
@@ -504,6 +508,7 @@ onBeforeUnmount(() => {
   if (noticeTimer) clearTimeout(noticeTimer);
   if (settleTimer) clearTimeout(settleTimer);
   if (placeLoadTimer) clearTimeout(placeLoadTimer);
+  placeLoadController?.abort();
   placeLoadVersion++;
   observer?.disconnect();
   map?.remove();
