@@ -172,6 +172,8 @@ Menerima `north`, `south`, `east`, `west`, `zoom`, dan `limit` opsional (maksima
 
 `GET /api/locations/at?lat=-8.4932&lng=140.4018` adalah jalur cepat pemilihan peta. Endpoint menjalankan pencarian tempat survei terdekat dan poligon bangunan secara paralel dalam satu request, lalu mengembalikan `{ building, place }`. Frontend menampilkan hasil lokal ini lebih dahulu dan hanya memakai reverse geocoding eksternal jika keduanya belum memberikan nama atau alamat yang memadai. Request lama dibatalkan ketika peta kembali bergerak dan hasil koordinat yang sama disimpan singkat di cache browser.
 
+Reverse geocoding eksternal tidak menahan interaksi peta: koordinat atau hasil lokal langsung dapat dikonfirmasi, kemudian nama/alamat diperbarui saat hasil tersedia. Respons reverse disimpan selama 30 hari dalam tabel `geocoding_cache`, dikelompokkan pada presisi lima angka desimal, dan request bersamaan untuk titik yang sama digabung. Cache tetap tersedia setelah restart PM2; baris kedaluwarsa dibersihkan bertahap saat cache kembali ditulis.
+
 ### Dashboard dan API admin
 
 Frontend dashboard tersedia pada `/admin`. Aktifkan akun dengan mengisi `ADMIN_USERNAME`, `ADMIN_PASSWORD_HASH`, dan `ADMIN_SESSION_SECRET` bersama-sama. Buat nilai yang diperlukan dengan:

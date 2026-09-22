@@ -23,15 +23,19 @@ import { adminRoutes } from './routes/admin.routes.js';
 import { buildingRoutes } from './routes/building.routes.js';
 import { PostgisBuildingRepository } from './services/buildings/postgis-building.repository.js';
 import type { BuildingRepository } from './types/index.js';
+import { PersistentReverseGeocodingProvider } from './services/geocoding/persistent-reverse-geocoding.provider.js';
 
 function createNominatimProvider(): GeocodingProvider {
-  return new NominatimProvider(
+  const upstream = new NominatimProvider(
     config.geocodingBaseUrl,
     config.geocodingTimeoutMs,
     config.geocodingUserAgent,
     config.frontendUrl,
     { searchRadiusKm: config.geocodingSearchRadiusKm, serviceLimits: config.serviceLimits },
   );
+  return databasePool
+    ? new PersistentReverseGeocodingProvider(databasePool, upstream)
+    : upstream;
 }
 
 function createRoutingProvider(): RoutingProvider {

@@ -641,10 +641,7 @@ function previewCenter(point: LocationPoint, target: Selection) {
     const resolved = placeWithBuilding(point, target, localPlace || fallbackPlace, building);
     if (resolved || (buildingSettled && localSettled && fallbackSettled))
       centerPreviewPlace.value = resolved;
-    const localResolutionReady = !!localPlace || !!building?.name || !!building?.address;
-    resolvingCenterPreview.value = !(
-      buildingSettled && localSettled && (localResolutionReady || fallbackSettled)
-    );
+    resolvingCenterPreview.value = !(buildingSettled && localSettled);
   };
   const maybeStartFallback = () => {
     if (!isCurrent() || !fallbackAllowed || fallbackStarted || !buildingSettled || !localSettled)
