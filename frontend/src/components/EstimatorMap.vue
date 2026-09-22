@@ -46,6 +46,7 @@ let placeLoadVersion = 0;
 let loadedSurveyPlaces: MapPlace[] = [];
 let visibleLabelIds = new Set<string>();
 let forcedLabelPlaceId: string | null = null;
+let focusedSearchPlace: GeocodedPlace | null = null;
 let alive = true;
 
 function escapeMarkup(value: string): string {
@@ -354,11 +355,22 @@ function nearestLoadedPlace(point: LocationPoint, radiusMeters = 60): GeocodedPl
     : undefined;
 }
 
+function focusedPlaceAt(point: LocationPoint): GeocodedPlace | undefined {
+  if (!focusedSearchPlace) return undefined;
+  const distance = map.distance(
+    [point.lat, point.lng],
+    [focusedSearchPlace.lat, focusedSearchPlace.lng],
+  );
+  return distance <= 10
+    ? { ...focusedSearchPlace, distanceMeters: Math.round(distance) }
+    : undefined;
+}
+
 function publishCenterPreview() {
   syncCenterPoint();
   if (centerPoint.value && props.selection) {
     const point = { ...centerPoint.value };
-    emit('preview', point, props.selection, nearestLoadedPlace(point));
+    emit('preview', point, props.selection, focusedPlaceAt(point) || nearestLoadedPlace(point));
   }
 }
 
@@ -422,11 +434,12 @@ function locateForSelection(target: Selection) {
   return locate(target, target === 'pickup' && !props.pickup);
 }
 
-function beginSelection(target: Selection) {
+function beginSelection(target: Selection, initialPlace?: GeocodedPlace) {
   if (!map) return false;
-  const startingPoint = target === 'pickup'
+  focusedSearchPlace = initialPlace || null;
+  const startingPoint = initialPlace || (target === 'pickup'
     ? props.pickup || userLocationMarker?.getLatLng()
-    : props.destination || props.pickup;
+    : props.destination || props.pickup);
   if (startingPoint) map.setView([startingPoint.lat, startingPoint.lng], Math.max(map.getZoom(), 16));
   publishCenterPreview();
   return true;
@@ -453,6 +466,7 @@ watch(() => [
   props.selection,
 ], syncMarkers);
 watch(() => props.selection, target => {
+  focusedSearchPlace = null;
   mapMoving.value = false;
   if (target && !props.busy) publishCenterPreview();
   else centerPoint.value = null;

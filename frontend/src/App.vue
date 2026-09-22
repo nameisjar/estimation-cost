@@ -120,7 +120,7 @@ const selectedCount = computed(
   () => Number(!!pickup.value) + Number(!!destination.value)
 );
 const showMobileAction = computed(
-  () => !estimate.value && !manualOpen.value && !showPlacePicker.value
+  () => (!!selection.value || !estimate.value) && !manualOpen.value && !showPlacePicker.value
 );
 const showRecentLocations = computed(
   () => !searchQuery.value.trim() && !searchBusy.value && recentLocations.value.length > 0
@@ -455,7 +455,6 @@ function startSelection(target: Selection, revealMap = true) {
   manualLng.value = "";
   manualError.value = "";
   error.value = "";
-  estimate.value = null;
   if (revealMap && !window.matchMedia("(max-width: 800px)").matches)
     void reveal(mapRegion.value, true);
 }
@@ -882,14 +881,12 @@ function suggestionDistance(place: GeocodedPlace) {
 
 async function selectSearchResult(place: GeocodedPlace) {
   const target = searchTarget.value;
-  choose({ lat: place.lat, lng: place.lng }, target, place);
-  searchResults.value = [];
-  searchQuery.value = "";
-  searchError.value = "";
   closePlacePicker();
+  startSelection(target, false);
   await nextTick();
-  mapComponent.value?.fitMap();
-  await reveal(mapRegion.value, true);
+  mapComponent.value?.beginSelection(target, place);
+  if (!window.matchMedia("(max-width: 800px)").matches)
+    await reveal(mapRegion.value, true);
 }
 
 async function selectRecentLocation(place: GeocodedPlace) {
