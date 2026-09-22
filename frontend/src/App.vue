@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import {
+  ArrowLeft,
   ArrowRight,
   ArrowUpDown,
   Check,
@@ -452,7 +453,14 @@ function startSelection(target: Selection, revealMap = true) {
   manualError.value = "";
   error.value = "";
   estimate.value = null;
-  if (revealMap) void reveal(mapRegion.value, true);
+  if (revealMap && !window.matchMedia("(max-width: 800px)").matches)
+    void reveal(mapRegion.value, true);
+}
+
+function cancelMapSelection() {
+  clearCenterPreview();
+  selection.value = null;
+  state.value = "idle";
 }
 
 async function openPlacePicker(target: Selection) {
@@ -946,7 +954,12 @@ function confirmMapSelection() {
   mapComponent.value?.confirmCenterSelection();
 }
 
+watch(selection, target => {
+  document.body.classList.toggle("map-selection-open", !!target);
+});
+
 onBeforeUnmount(() => {
+  document.body.classList.remove("map-selection-open");
   clearCenterPreview();
   cancelPlaceSearch();
   clearWhatsappFallback();
@@ -1233,10 +1246,26 @@ onBeforeUnmount(() => {
         <div
           ref="mapRegion"
           class="map-column"
+          :class="{ 'mobile-map-selection': !!selection }"
           tabindex="-1"
           role="region"
           aria-label="Pemilihan titik di peta"
         >
+          <header v-if="selection" class="mobile-map-header">
+            <button
+              type="button"
+              aria-label="Kembali dari pemilihan peta"
+              @click="cancelMapSelection"
+            >
+              <ArrowLeft :size="21" />
+            </button>
+            <span>
+              <strong>{{
+                selection === "pickup" ? "Pilih lokasi jemput" : "Pilih lokasi tujuan"
+              }}</strong>
+              <small>Geser peta sampai pin berada di titik yang tepat</small>
+            </span>
+          </header>
           <EstimatorMap
             ref="mapComponent"
             :pickup="pickup"
