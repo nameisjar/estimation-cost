@@ -20,7 +20,7 @@ const props = defineProps<{
   estimate: Estimate | null;
   busy: boolean;
 }>();
-const emit = defineEmits<{ choose: [point: LocationPoint, target: Selection]; preview: [point: LocationPoint, target: Selection]; 'preview-start': [target: Selection]; located: [point: LocationPoint] }>();
+const emit = defineEmits<{ choose: [point: LocationPoint, target: Selection]; preview: [point: LocationPoint, target: Selection, nearbyPlace?: GeocodedPlace]; 'preview-start': [target: Selection]; located: [point: LocationPoint] }>();
 const container = ref<HTMLDivElement>();
 const notice = ref('');
 const locationPending = ref(false);
@@ -339,9 +339,27 @@ function syncCenterPoint() {
   centerPoint.value = { lat: center.lat, lng: center.lng };
 }
 
+function nearestLoadedPlace(point: LocationPoint, radiusMeters = 60): GeocodedPlace | undefined {
+  let nearest: MapPlace | undefined;
+  let nearestDistance = Number.POSITIVE_INFINITY;
+  for (const place of loadedSurveyPlaces) {
+    const distance = map.distance([point.lat, point.lng], [place.lat, place.lng]);
+    if (distance < nearestDistance) {
+      nearest = place;
+      nearestDistance = distance;
+    }
+  }
+  return nearest && nearestDistance <= radiusMeters
+    ? { ...nearest, distanceMeters: Math.round(nearestDistance) }
+    : undefined;
+}
+
 function publishCenterPreview() {
   syncCenterPoint();
-  if (centerPoint.value && props.selection) emit('preview', { ...centerPoint.value }, props.selection);
+  if (centerPoint.value && props.selection) {
+    const point = { ...centerPoint.value };
+    emit('preview', point, props.selection, nearestLoadedPlace(point));
+  }
 }
 
 function fitMap() {

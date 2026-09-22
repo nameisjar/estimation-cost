@@ -26,7 +26,7 @@ import {
   estimateCost,
   getBuildingAt,
   getConfig,
-  getLocationAt,
+  getLocalPlaceAt,
   isValidPoint,
   reverseGeocode,
   searchPlaces,
@@ -563,24 +563,31 @@ async function resolvePlace(
   const controller = new AbortController();
   placeResolutionControllers[target] = controller;
   resolvingPlace.value[target] = true;
+  const existing = target === "pickup" ? pickupPlace.value : destinationPlace.value;
+  let resolvedPlace = preserveExistingPlace && existing ? existing : null;
+  let building: BuildingFootprint | null = null;
+  const applyResolvedPlace = () => {
+    if (geocodeVersion[target] !== version || controller.signal.aborted) return;
+    setPlace(target, placeWithBuilding(
+      point,
+      target,
+      resolvedPlace,
+      building,
+      preserveExistingPlace && !!existing,
+    ));
+  };
   try {
-    const [placeResult, buildingResult] = await Promise.allSettled([
-      reverseGeocode(point, false, controller.signal),
-      getBuildingAt(point, controller.signal),
+    await Promise.allSettled([
+      reverseGeocode(point, false, controller.signal).then(place => {
+        resolvedPlace = preserveExistingPlace && existing ? existing : place || existing;
+        applyResolvedPlace();
+      }),
+      getBuildingAt(point, controller.signal).then(result => {
+        building = result;
+        applyResolvedPlace();
+      }),
     ]);
-    if (geocodeVersion[target] === version) {
-      const existing = target === "pickup" ? pickupPlace.value : destinationPlace.value;
-      const place = placeResult.status === "fulfilled" ? placeResult.value : null;
-      const building = buildingResult.status === "fulfilled" ? buildingResult.value : null;
-      const resolvedPlace = preserveExistingPlace && existing ? existing : place || existing;
-      setPlace(target, placeWithBuilding(
-        point,
-        target,
-        resolvedPlace,
-        building,
-        preserveExistingPlace && !!existing,
-      ));
-    }
+    applyResolvedPlace();
   } catch {
     if (geocodeVersion[target] === version) setPlace(target, null);
   } finally {
@@ -615,7 +622,7 @@ function startCenterPreview(target: Selection) {
   resolvingCenterPreview.value = true;
 }
 
-function previewCenter(point: LocationPoint, target: Selection) {
+function previewCenter(point: LocationPoint, target: Selection, nearbyPlace?: GeocodedPlace) {
   if (selection.value !== target || !isValidPoint(point)) return;
   const version = ++centerPreviewVersion;
   if (centerPreviewTimer) clearTimeout(centerPreviewTimer);
@@ -624,10 +631,12 @@ function previewCenter(point: LocationPoint, target: Selection) {
   centerPreviewController = controller;
   centerPreviewTarget.value = target;
   centerPreviewPoint.value = point;
-  centerPreviewPlace.value = null;
-  resolvingCenterPreview.value = true;
+  centerPreviewPlace.value = nearbyPlace
+    ? placeWithBuilding(point, target, nearbyPlace, null)
+    : null;
+  resolvingCenterPreview.value = !nearbyPlace;
   let building: BuildingFootprint | null = null;
-  let localPlace: GeocodedPlace | null = null;
+  let localPlace: GeocodedPlace | null = nearbyPlace || null;
   let fallbackPlace: GeocodedPlace | null = null;
   let buildingSettled = false;
   let localSettled = false;
@@ -641,10 +650,10 @@ function previewCenter(point: LocationPoint, target: Selection) {
     const resolved = placeWithBuilding(point, target, localPlace || fallbackPlace, building);
     if (resolved || (buildingSettled && localSettled && fallbackSettled))
       centerPreviewPlace.value = resolved;
-    resolvingCenterPreview.value = !(buildingSettled && localSettled);
+    resolvingCenterPreview.value = !localSettled && !localPlace;
   };
   const maybeStartFallback = () => {
-    if (!isCurrent() || !fallbackAllowed || fallbackStarted || !buildingSettled || !localSettled)
+    if (!isCurrent() || !fallbackAllowed || fallbackStarted || !localSettled)
       return;
     if (localPlace) {
       fallbackSettled = true;
@@ -661,20 +670,21 @@ function previewCenter(point: LocationPoint, target: Selection) {
       });
   };
 
-  void getLocationAt(point, controller.signal)
-    .then(result => {
-      building = result.building;
-      localPlace = result.place;
-    })
-    .catch(() => {
-      building = null;
-      localPlace = null;
-    })
+  void getLocalPlaceAt(point, controller.signal)
+    .then(result => { localPlace = result || localPlace; })
+    .catch(() => { localPlace = localPlace || null; })
     .finally(() => {
-      buildingSettled = true;
       localSettled = true;
       applyPreview();
       maybeStartFallback();
+    });
+
+  void getBuildingAt(point, controller.signal)
+    .then(result => { building = result; })
+    .catch(() => { building = null; })
+    .finally(() => {
+      buildingSettled = true;
+      applyPreview();
     });
 
   centerPreviewTimer = setTimeout(() => {

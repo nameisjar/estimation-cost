@@ -1,11 +1,15 @@
 import type { LocationPoint, Estimate, AppConfig, GeocodedPlace, MapPlace, BuildingFootprint } from '../types';
 const baseUrl = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
-const locationAtCache = new Map<string, {
+const buildingAtCache = new Map<string, {
   expiresAt: number;
-  value: { building: BuildingFootprint | null; place: GeocodedPlace | null };
+  value: BuildingFootprint | null;
 }>();
-function pointCacheKey(point: LocationPoint) {
-  return `${point.lat.toFixed(5)},${point.lng.toFixed(5)}`;
+const localPlaceAtCache = new Map<string, {
+  expiresAt: number;
+  value: GeocodedPlace | null;
+}>();
+function pointCacheKey(point: LocationPoint, precision = 5) {
+  return `${point.lat.toFixed(precision)},${point.lng.toFixed(precision)}`;
 }
 export function isValidPoint(point: LocationPoint | null): point is LocationPoint {
   return !!point && Number.isFinite(point.lat) && Number.isFinite(point.lng) && Math.abs(point.lat) <= 90 && Math.abs(point.lng) <= 180;
@@ -41,36 +45,42 @@ export function reverseGeocode(point: LocationPoint, includeGeometry = false, si
   return request<GeocodedPlace | null>(`/api/geocode/reverse?${params}`, { signal });
 }
 export async function getBuildingAt(point: LocationPoint, signal?: AbortSignal) {
+  const cacheKey = pointCacheKey(point, 6);
+  const cached = buildingAtCache.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now()) return cached.value;
+  if (cached) buildingAtCache.delete(cacheKey);
   const params = new URLSearchParams({ lat: String(point.lat), lng: String(point.lng) });
   const path = `/api/buildings/at?${params}`;
   try {
-    return await request<BuildingFootprint | null>(path, { signal });
+    const value = await request<BuildingFootprint | null>(path, { signal });
+    if (!signal?.aborted) rememberPointResult(buildingAtCache, cacheKey, value);
+    return value;
   } catch (error) {
     if (signal?.aborted) throw error;
     await new Promise(resolve => setTimeout(resolve, 250));
-    return request<BuildingFootprint | null>(path, { signal });
+    const value = await request<BuildingFootprint | null>(path, { signal });
+    if (!signal?.aborted) rememberPointResult(buildingAtCache, cacheKey, value);
+    return value;
   }
 }
-export function getLocalPlaceAt(point: LocationPoint, signal?: AbortSignal) {
-  const params = new URLSearchParams({ lat: String(point.lat), lng: String(point.lng) });
-  return request<GeocodedPlace | null>(`/api/places/nearest?${params}`, { signal });
-}
-export async function getLocationAt(point: LocationPoint, signal?: AbortSignal) {
+export async function getLocalPlaceAt(point: LocationPoint, signal?: AbortSignal) {
   const cacheKey = pointCacheKey(point);
-  const cached = locationAtCache.get(cacheKey);
+  const cached = localPlaceAtCache.get(cacheKey);
   if (cached && cached.expiresAt > Date.now()) return cached.value;
-  if (cached) locationAtCache.delete(cacheKey);
+  if (cached) localPlaceAtCache.delete(cacheKey);
   const params = new URLSearchParams({ lat: String(point.lat), lng: String(point.lng) });
-  const value = await request<{ building: BuildingFootprint | null; place: GeocodedPlace | null }>(
-    `/api/locations/at?${params}`,
-    { signal },
-  );
-  if (!signal?.aborted) {
-    locationAtCache.set(cacheKey, { expiresAt: Date.now() + 120_000, value });
-    if (locationAtCache.size > 200)
-      locationAtCache.delete(locationAtCache.keys().next().value!);
-  }
+  const value = await request<GeocodedPlace | null>(`/api/places/nearest?${params}`, { signal });
+  if (!signal?.aborted) rememberPointResult(localPlaceAtCache, cacheKey, value);
   return value;
+}
+
+function rememberPointResult<T>(
+  cache: Map<string, { expiresAt: number; value: T }>,
+  key: string,
+  value: T,
+) {
+  cache.set(key, { expiresAt: Date.now() + 120_000, value });
+  if (cache.size > 200) cache.delete(cache.keys().next().value!);
 }
 export function searchPlaces(query: string, near?: LocationPoint | null, signal?: AbortSignal) {
   const params = new URLSearchParams({ q: query.trim() });

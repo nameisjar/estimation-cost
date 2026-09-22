@@ -170,7 +170,9 @@ Menerima `north`, `south`, `east`, `west`, `zoom`, dan `limit` opsional (maksima
 
 ### GET /api/locations/at
 
-`GET /api/locations/at?lat=-8.4932&lng=140.4018` adalah jalur cepat pemilihan peta. Endpoint menjalankan pencarian tempat survei terdekat dan poligon bangunan secara paralel dalam satu request, lalu mengembalikan `{ building, place }`. Frontend menampilkan hasil lokal ini lebih dahulu dan hanya memakai reverse geocoding eksternal jika keduanya belum memberikan nama atau alamat yang memadai. Request lama dibatalkan ketika peta kembali bergerak dan hasil koordinat yang sama disimpan singkat di cache browser.
+`GET /api/locations/at?lat=-8.4932&lng=140.4018` tetap tersedia untuk klien yang memerlukan `{ building, place }` dalam satu respons. Pemilih peta utama memakai `/api/places/nearest` dan `/api/buildings/at` secara paralel tetapi independen: label tempat yang sudah dimuat pada viewport ditampilkan seketika, hasil tempat lokal memverifikasi nama/alamat, dan geometri bangunan menyusul tanpa menahan label. Request lama dibatalkan ketika peta kembali bergerak dan hasil tempat serta bangunan disimpan terpisah dalam cache browser.
+
+Pencarian poligon memilih kandidat bangunan/area terlebih dahulu sebelum melengkapi metadata POI. Indeks ekspresi `places_location_geometry_gix` mempercepat pencarian tempat yang berada di dalam poligon terpilih.
 
 Reverse geocoding eksternal tidak menahan interaksi peta: koordinat atau hasil lokal langsung dapat dikonfirmasi, kemudian nama/alamat diperbarui saat hasil tersedia. Respons reverse disimpan selama 30 hari dalam tabel `geocoding_cache`, dikelompokkan pada presisi lima angka desimal, dan request bersamaan untuk titik yang sama digabung. Cache tetap tersedia setelah restart PM2; baris kedaluwarsa dibersihkan bertahap saat cache kembali ditulis.
 
