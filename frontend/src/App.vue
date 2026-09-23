@@ -119,6 +119,13 @@ const ready = computed(() => !!pickup.value && !!destination.value && !busy.valu
 const selectedCount = computed(
   () => Number(!!pickup.value) + Number(!!destination.value)
 );
+const locationCountLabel = computed(() =>
+  selection.value === "pickup"
+    ? "Meninjau jemput"
+    : selection.value === "destination"
+    ? "Meninjau tujuan"
+    : `${selectedCount.value}/2 lokasi`
+);
 const showMobileAction = computed(
   () => (!!selection.value || !estimate.value) && !manualOpen.value && !showPlacePicker.value
 );
@@ -417,10 +424,24 @@ function clearRecentLocations() {
 }
 
 function locationStatus(target: Selection) {
-  const point = target === "pickup" ? pickup.value : destination.value;
-  const place = target === "pickup" ? pickupPlace.value : destinationPlace.value;
+  const previewing = selection.value === target;
+  const point = previewing
+    ? centerPreviewPoint.value
+    : target === "pickup"
+    ? pickup.value
+    : destination.value;
+  const place = previewing
+    ? centerPreviewTarget.value === target
+      ? centerPreviewPlace.value
+      : null
+    : target === "pickup"
+    ? pickupPlace.value
+    : destinationPlace.value;
+  if (previewing && (resolvingCenterPreview.value || !point)) {
+    return { kind: "loading", text: "Memeriksa nama dan ketepatan titik…" };
+  }
   if (!point) return null;
-  if (resolvingPlace.value[target]) {
+  if (!previewing && resolvingPlace.value[target]) {
     return { kind: "loading", text: "Memeriksa nama dan ketepatan lokasi…" };
   }
   const precision = locationPrecision(place);
@@ -1075,7 +1096,7 @@ onBeforeUnmount(() => {
           >
             <div class="card-title">
               <h2 id="location-title">Mau kirim ke mana?</h2>
-              <span class="location-count">{{ selectedCount }}/2 lokasi</span>
+              <span class="location-count">{{ locationCountLabel }}</span>
             </div>
             <p class="card-subtitle">Cari nama tempat atau pilih langsung dari peta.</p>
             <div class="location-fields">
