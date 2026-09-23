@@ -262,10 +262,6 @@ body:has(.place-picker-backdrop){overflow:hidden}
 .pick-map-button{grid-template-columns:22px minmax(0,1fr) 18px}
 .whatsapp-button span{flex:0 1 auto}
 .inline-calculate svg:last-child,.mobile-action-bar .primary-button svg:last-child{margin-left:0}
-.location-status{display:flex;align-items:flex-start;gap:5px;margin:6px 2px 0;font-size:8.5px;line-height:1.45;color:#607d99}
-.location-status svg{flex:0 0 auto;margin-top:1px}
-.location-status.is-warning{color:#b95427}
-.location-status.is-loading{color:#607d99}
 .recent-locations{margin:0 0 12px}
 .recent-locations-header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 2px 2px}
 .recent-locations-header strong{color:#284d70;font-size:10.5px}
@@ -280,7 +276,7 @@ body:has(.place-picker-backdrop){overflow:hidden}
 .recent-row-chevron{color:#93a2b0}
 .picker-attribution{min-height:44px;display:flex;align-items:center;justify-content:center;margin-top:8px;color:#65798c;font-size:8.5px}
 @media(max-width:800px){.closing-line{display:none}}
-@media(max-width:540px){.map-actions{top:11px}.map-notice{top:11px;left:11px;right:64px}.map-hint{left:11px;bottom:27px;transform:none;max-width:calc(100% - 78px)}.leaflet-control-zoom{margin-bottom:22px!important}.location-status{font-size:9px}.recent-location-list{max-height:224px}.recent-location-list strong{font-size:13px}.recent-location-list small{color:#63788e;font-size:11px}.pick-map-button strong{font-size:12.5px}.pick-map-button small{color:#63788e;font-size:10.5px}}
+@media(max-width:540px){.map-actions{top:11px}.map-notice{top:11px;left:11px;right:64px}.map-hint{left:11px;bottom:27px;transform:none;max-width:calc(100% - 78px)}.leaflet-control-zoom{margin-bottom:22px!important}.recent-location-list{max-height:224px}.recent-location-list strong{font-size:13px}.recent-location-list small{color:#63788e;font-size:11px}.pick-map-button strong{font-size:12.5px}.pick-map-button small{color:#63788e;font-size:10.5px}}
 @media(max-width:540px){.survey-place-content,.survey-place-dot{width:17px;height:17px}.survey-place-dot svg{width:10px;height:10px}.survey-place-inline-label{display:-webkit-box;top:21px;max-width:112px;overflow:hidden;font-size:8px;line-height:1.25;white-space:normal;-webkit-box-orient:vertical;-webkit-line-clamp:2}}
 
 /* Clear center-pin selection feedback. */

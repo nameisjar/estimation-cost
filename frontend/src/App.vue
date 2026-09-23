@@ -423,43 +423,6 @@ function clearRecentLocations() {
   }
 }
 
-function locationStatus(target: Selection) {
-  const previewing = selection.value === target;
-  const point = previewing
-    ? centerPreviewPoint.value
-    : target === "pickup"
-    ? pickup.value
-    : destination.value;
-  const place = previewing
-    ? centerPreviewTarget.value === target
-      ? centerPreviewPlace.value
-      : null
-    : target === "pickup"
-    ? pickupPlace.value
-    : destinationPlace.value;
-  if (previewing && (resolvingCenterPreview.value || !point)) {
-    return { kind: "loading", text: "Memeriksa nama dan ketepatan titik…" };
-  }
-  if (!point) return null;
-  if (!previewing && resolvingPlace.value[target]) {
-    return { kind: "loading", text: "Memeriksa nama dan ketepatan lokasi…" };
-  }
-  const precision = locationPrecision(place);
-  if (precision === "road") {
-    return {
-      kind: "warning",
-      text: "Lokasi masih berupa area jalan. Geser pin ke bangunan yang tepat.",
-    };
-  }
-  if (precision === "approximate") {
-    return {
-      kind: "warning",
-      text: "Lokasi belum spesifik. Geser pin ke bangunan yang tepat.",
-    };
-  }
-  return null;
-}
-
 onMounted(() => {
   loadRecentLocations();
   void initializeApp();
@@ -1120,19 +1083,6 @@ onBeforeUnmount(() => {
                       ><small>{{ pickupDisplayAddress }}</small></span
                     >
                   </button>
-                  <p
-                    v-if="locationStatus('pickup')"
-                    class="location-status"
-                    :class="`is-${locationStatus('pickup')?.kind}`"
-                    role="status"
-                  >
-                    <LoaderCircle
-                      v-if="locationStatus('pickup')?.kind === 'loading'"
-                      :size="12"
-                      class="spinner"
-                    /><Info v-else :size="12" />
-                    <span>{{ locationStatus('pickup')?.text }}</span>
-                  </p>
                 </div>
               </div>
               <div class="swap-row">
@@ -1168,19 +1118,6 @@ onBeforeUnmount(() => {
                       ><small>{{ destinationDisplayAddress }}</small></span
                     >
                   </button>
-                  <p
-                    v-if="locationStatus('destination')"
-                    class="location-status"
-                    :class="`is-${locationStatus('destination')?.kind}`"
-                    role="status"
-                  >
-                    <LoaderCircle
-                      v-if="locationStatus('destination')?.kind === 'loading'"
-                      :size="12"
-                      class="spinner"
-                    /><Info v-else :size="12" />
-                    <span>{{ locationStatus('destination')?.text }}</span>
-                  </p>
                 </div>
               </div>
             </div>
