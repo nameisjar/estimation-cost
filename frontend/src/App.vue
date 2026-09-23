@@ -1180,31 +1180,34 @@ onBeforeUnmount(() => {
               </div>
               <details class="price-details">
                 <summary>Rincian biaya <ChevronDown :size="16" /></summary>
-                <div>
-                  <span>Tarif dasar</span
-                  ><strong>{{ formatCurrency(estimate.pricing.baseFare) }}</strong>
-                </div>
-                <div>
-                  <span
-                    >Tambahan {{ estimate.pricing.billableKm }} km ×
-                    {{ formatCurrency(estimate.pricing.pricePerKm) }}</span
-                  ><strong>{{ formatCurrency(estimate.pricing.distanceFare) }}</strong>
-                </div>
-                <div
+                <template
                   v-if="
-                    estimate.pricing.total >
+                    estimate.pricing.total <=
                     estimate.pricing.baseFare + estimate.pricing.distanceFare
                   "
                 >
-                  <span>Penyesuaian tarif minimum</span
-                  ><strong>{{
-                    formatCurrency(
-                      estimate.pricing.total -
-                        estimate.pricing.baseFare -
-                        estimate.pricing.distanceFare
-                    )
-                  }}</strong>
+                  <div>
+                    <span>Tarif {{ estimate.pricing.includedKm }} km pertama</span
+                    ><strong>{{ formatCurrency(estimate.pricing.baseFare) }}</strong>
+                  </div>
+                  <div v-if="estimate.pricing.billableKm > 0">
+                    <span
+                      >Tambahan {{ estimate.pricing.billableKm }} km ×
+                      {{ formatCurrency(estimate.pricing.pricePerKm) }}</span
+                    ><strong>{{ formatCurrency(estimate.pricing.distanceFare) }}</strong>
+                  </div>
+                </template>
+                <div v-else>
+                  <span>Tarif minimum</span
+                  ><strong>{{ formatCurrency(estimate.pricing.total) }}</strong>
                 </div>
+                <div class="price-details-total">
+                  <span>Total estimasi</span
+                  ><strong>{{ formatCurrency(estimate.pricing.total) }}</strong>
+                </div>
+                <p v-if="estimate.pricing.billableKm > 0" class="pricing-rounding-note">
+                  Kilometer tambahan dibulatkan ke atas.
+                </p>
               </details>
               <button
                 v-if="bookingLinks"

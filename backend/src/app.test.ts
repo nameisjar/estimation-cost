@@ -30,7 +30,7 @@ test('API health, pricing authority, geometry, errors and CORS', async () => {
   try {
     const health = await fetch(`${base}/health`); assert.deepEqual(await health.json(), { success: true, message: 'AntarFix Estimator API is running' });
     const response = await fetch(`${base}/api/estimate?geometry=true`, { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: config.frontendUrl }, body: JSON.stringify({ pickup, destination, distanceKm: 0, estimatedCost: 1 }) });
-    const body = await response.json(); assert.equal(response.status, 200); assert.equal(body.data.pricing.total, 18000); assert.equal(body.data.geometry.type, 'LineString'); assert.equal(response.headers.get('access-control-allow-origin'), config.frontendUrl);
+    const body = await response.json(); assert.equal(response.status, 200); assert.equal(body.data.pricing.total, 27000); assert.equal(body.data.geometry.type, 'LineString'); assert.equal(response.headers.get('access-control-allow-origin'), config.frontendUrl);
     for (const bad of [{ pickup, destination: { lat: 99, lng: 140 } }, { pickup: { lat: 0, lng: '0' }, destination }, {}]) {
       const result = await fetch(`${base}/api/estimate`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(bad) }); assert.equal(result.status, 400); assert.equal((await result.json()).success, false);
     }

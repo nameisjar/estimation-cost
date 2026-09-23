@@ -375,3 +375,13 @@ body:has(.place-picker-backdrop){overflow:hidden}
   .mobile-map-header strong{font-size:13.5px}
   .mobile-map-header small{font-size:9.5px}
 }
+
+/* Keep the fare breakdown readable and aligned with the actual pricing rule. */
+.price-details .price-details-total{margin-top:12px;padding-top:10px;border-top:1px solid #e5edf5;color:#0b315b;font-size:10px;font-weight:700}
+.price-details .price-details-total strong{font-size:11px;font-weight:800}
+.pricing-rounding-note{margin:8px 0 0;color:#71849a;font-size:8.5px;line-height:1.5}
+@media(max-width:540px){
+  .price-details .price-details-total{font-size:10.5px}
+  .price-details .price-details-total strong{font-size:11.5px}
+  .pricing-rounding-note{font-size:9px}
+}

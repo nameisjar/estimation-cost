@@ -55,10 +55,10 @@ PowerShell: `npm.cmd` jika execution policy memblokir `npm.ps1`, dan `Copy-Item 
 | MAX_DELIVERY_DISTANCE_KM | 50 | Jarak rute jalan maksimum yang dapat diestimasi |
 | RATE_LIMIT_WINDOW_MS | 60000 | Durasi jendela pembatasan API per alamat IP |
 | RATE_LIMIT_MAX_REQUESTS | 60 | Maksimum request API per alamat IP dalam satu jendela |
-| BASE_FARE | 8000 | Tarif dasar Rupiah |
+| BASE_FARE | 15000 | Tarif 2 km pertama dalam Rupiah |
 | INCLUDED_KM | 2 | Km termasuk tarif dasar |
-| PRICE_PER_KM | 2500 | Tarif per km tambahan setelah ceiling |
-| MINIMUM_FARE | 8000 | Tarif minimum |
+| PRICE_PER_KM | 3000 | Tarif per km tambahan setelah ceiling |
+| MINIMUM_FARE | 15000 | Tarif minimum |
 | FRONTEND_URL | http://localhost:5173 | Satu origin frontend yang diizinkan CORS |
 | FRONTEND_URLS | kosong | Daftar origin frontend dipisahkan koma; menggantikan `FRONTEND_URL` bila diisi |
 | ADMIN_USERNAME | kosong | Username dashboard admin; isi bersama hash dan session secret |
@@ -113,7 +113,7 @@ Alamat hasil reverse geocoding disimpan dengan status `automatic` dan belum dian
 ### GET /api/config
 
 ```json
-{"success":true,"data":{"pricing":{"baseFare":8000,"includedKm":2,"pricePerKm":2500,"minimumFare":8000},"whatsappNumber":"","serviceArea":{"centerLat":-8.4932,"centerLng":140.4018,"radiusKm":50,"maxDistanceKm":50}}}
+{"success":true,"data":{"pricing":{"baseFare":15000,"includedKm":2,"pricePerKm":3000,"minimumFare":15000},"whatsappNumber":"","serviceArea":{"centerLat":-8.4932,"centerLng":140.4018,"radiusKm":50,"maxDistanceKm":50}}}
 ```
 
 ### POST /api/estimate
@@ -133,14 +133,14 @@ Contoh respons ilustratif untuk jarak 5,2 km, bukan jarak aktual koordinat terse
     "distanceKm": 5.2,
     "durationMinutes": 12,
     "pricing": {
-      "baseFare": 8000,
+      "baseFare": 15000,
       "includedKm": 2,
-      "pricePerKm": 2500,
-      "minimumFare": 8000,
+      "pricePerKm": 3000,
+      "minimumFare": 15000,
       "additionalKm": 3.2,
       "billableKm": 4,
-      "distanceFare": 10000,
-      "total": 18000
+      "distanceFare": 12000,
+      "total": 27000
     }
   }
 }
@@ -207,10 +207,10 @@ total = max(MINIMUM_FARE, BASE_FARE + distanceFare)
 
 | Jarak | Total default |
 | --- | --- |
-| 1 km | Rp8.000 |
-| 2 km | Rp8.000 |
-| 5,2 km | Rp18.000 |
-| 10 km | Rp28.000 |
+| 1 km | Rp15.000 |
+| 2 km | Rp15.000 |
+| 5,2 km | Rp27.000 |
+| 10 km | Rp39.000 |
 
 Jarak asli OSRM tidak dibulatkan sebelum pricing. Nilai 2,001 km menagih satu km tambahan. Formula/pricing terpisah dari provider routing.
 

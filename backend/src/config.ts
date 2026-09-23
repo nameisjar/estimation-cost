@@ -90,7 +90,7 @@ export const config = {
   whatsappNumber,
   serviceLimits,
   rateLimit,
-  pricing: { baseFare: numeric('BASE_FARE', 8000, true), includedKm: numeric('INCLUDED_KM', 2), pricePerKm: numeric('PRICE_PER_KM', 2500, true), minimumFare: numeric('MINIMUM_FARE', 8000, true) },
+  pricing: { baseFare: numeric('BASE_FARE', 15000, true), includedKm: numeric('INCLUDED_KM', 2), pricePerKm: numeric('PRICE_PER_KM', 3000, true), minimumFare: numeric('MINIMUM_FARE', 15000, true) },
 };
 if (
   config.port < 1 || config.port > 65535 ||

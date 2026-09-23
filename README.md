@@ -160,7 +160,7 @@ distanceFare = ceil(additionalKm) × PRICE_PER_KM
 total = max(MINIMUM_FARE, BASE_FARE + distanceFare)
 ```
 
-Default: tarif dasar Rp8.000 termasuk 2 km, tambahan Rp2.500/km, minimum Rp8.000. Jarak 1/2 km → Rp8.000; 5,2 km → Rp18.000; 10 km → Rp28.000. Backend menghitung jarak/durasi/tarif; input harga dari frontend bukan sumber kebenaran. Titik A/B dibatasi dalam radius 50 km dari pusat Merauke dan rute maksimal 50 km secara default. Nilai ini dapat diubah melalui environment.
+Default: Rp15.000 untuk 2 km pertama, tambahan Rp3.000 per kilometer yang dibulatkan ke atas, dan minimum Rp15.000. Jarak 1/2 km → Rp15.000; 5,2 km → Rp27.000; 10 km → Rp39.000. Backend menghitung jarak/durasi/tarif; input harga dari frontend bukan sumber kebenaran. Titik A/B dibatasi dalam radius 50 km dari pusat Merauke dan rute maksimal 50 km secara default. Nilai ini dapat diubah melalui environment.
 
 Contoh request, response, validasi, dan error tersedia di [README backend](backend/README.md).
 

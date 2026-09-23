@@ -30,7 +30,7 @@ Validasi terbaru dari root setelah penambahan perintah gabungan:
 - Konfigurasi PM2 di-load lewat Node: nama proses, cwd backend, path script hasil build, environment production, serta watch=false terverifikasi. PM2 daemon tidak dijalankan pada Windows atau server Ubuntu.
 - npm run dev: satu perintah berhasil menjalankan API dan Vite bersamaan. Uji dilakukan dengan override WhatsApp kosong hanya pada environment proses karena nilai .env lokal belum valid; file .env tetap dipertahankan.
 - HTTP frontend dan backend health melalui proxy Vite: HTTP 200.
-- npm run test:smoke: OSRM live estimate, GeoJSON, pricing, health, config, dan koordinat invalid lulus. Koordinat contoh menghasilkan 0,9996 km, 2,108333 menit, Rp8.000, dan 35 titik geometri.
+- npm run test:smoke: OSRM live estimate, GeoJSON, pricing, health, config, dan koordinat invalid lulus. Nilai tarif pada laporan historis ini mengikuti konfigurasi environment saat pengujian; default aplikasi saat ini adalah Rp15.000 untuk 2 km pertama dan Rp3.000 per kilometer tambahan.
 
 Proses development uji dihentikan setelah verifikasi. Tidak ada QA visual/browser baru. Contoh Nginx belum divalidasi menggunakan nginx -t karena Nginx server belum diakses; deployment PM2/Nginx di Ubuntu belum diuji.
 
