@@ -220,6 +220,8 @@ body:has(.place-picker-backdrop){overflow:hidden}
 .user-location-dot{width:24px;height:24px;display:grid;place-items:center;position:relative;border:3px solid #fff;border-radius:50%;background:#1884d8;box-shadow:0 2px 10px #07509a66}
 .user-location-dot:before{content:'';position:absolute;inset:-9px;border:2px solid #1884d866;border-radius:50%;animation:user-location-pulse 2s ease-out infinite}
 .user-location-dot i{width:6px;height:6px;border-radius:50%;background:#fff}
+.point-marker.at-user-location:after{content:'';position:absolute;z-index:0;left:17px;top:38px;width:25px;height:25px;border:2px solid #1884d899;border-radius:50%;background:#1884d81c;transform:translate(-50%,-50%);animation:user-location-pulse 2s ease-out infinite}
+.point-marker.at-user-location .saved-marker{position:relative;z-index:1}
 .legend-user{background:#1884d8;border:1px solid #fff;box-shadow:0 0 0 1px #1884d866}
 @keyframes marker-arrive{from{transform:translateY(-8px) scale(.84);opacity:.35}to{transform:translateY(0) scale(1);opacity:1}}
 @keyframes building-highlight-in{from{opacity:.15}to{opacity:1}}
@@ -236,6 +238,8 @@ body:has(.place-picker-backdrop){overflow:hidden}
 .center-picker-target{--target-color:#ff5a0a;--target-light:#ff7a3d;position:absolute;z-index:550;left:50%;top:50%;width:52px;height:68px;pointer-events:none;transform:translate(-50%,-50%)}
 .center-picker-target.pickup{--target-color:#073b7a;--target-light:#155da5}
 .center-picker-target:after{content:'';position:absolute;left:50%;top:50%;width:11px;height:4px;border-radius:50%;background:#073b7a30;filter:blur(1px);transform:translate(-50%,-50%);transition:transform .18s ease,opacity .18s ease;animation:center-shadow-breathe 1.8s ease-in-out infinite}
+.center-picker-target.at-user-location:before{content:'';position:absolute;z-index:0;left:50%;top:50%;width:30px;height:30px;border:2px solid #1884d8aa;border-radius:50%;background:#1884d81c;transform:translate(-50%,-50%);animation:user-location-pulse 2s ease-out infinite}
+.center-picker-location-label{position:absolute;z-index:2;left:50%;top:calc(50% + 13px);width:max-content;padding:4px 7px;border:1px solid #b9d9f2;border-radius:7px;background:#fffffff2;color:#07509a;font:700 9px/1.2 Manrope,sans-serif;box-shadow:0 2px 7px #073b7a1f;transform:translateX(-50%)}
 .center-picker-icon{position:absolute;z-index:1;left:50%;top:50%;width:44px;height:58px;overflow:visible;color:var(--target-color);transform:translate(-50%,-55px)}
 .center-picker-gradient-light{stop-color:var(--target-light)}.center-picker-gradient-dark{stop-color:var(--target-color)}
 .center-picker-shape{fill:url(#center-picker-gradient);stroke:#fff;stroke-width:2.2;stroke-linejoin:round}
@@ -290,7 +294,7 @@ body:has(.place-picker-backdrop){overflow:hidden}
 @keyframes center-dot-land{0%,100%{transform:scale(1)}65%{transform:scale(1.25)}}
 @keyframes center-shadow-breathe{0%,100%{opacity:.55;transform:translate(-50%,-50%) scale(.88)}50%{opacity:.8;transform:translate(-50%,-50%) scale(1.06)}}
 @keyframes center-shadow-land{0%{opacity:.3;transform:translate(-50%,-50%) scale(.55)}65%{opacity:.85;transform:translate(-50%,-50%) scale(1.18)}100%{opacity:.65;transform:translate(-50%,-50%) scale(1)}}
-@media(prefers-reduced-motion:reduce){.center-picker-body,.center-picker-dot,.center-picker-target:after,.saved-marker{animation:none!important;transition:none!important}}
+@media(prefers-reduced-motion:reduce){.center-picker-body,.center-picker-dot,.center-picker-target:after,.center-picker-target.at-user-location:before,.point-marker.at-user-location:after,.saved-marker{animation:none!important;transition:none!important}}
 
 /* Recognizable WhatsApp booking action. */
 .whatsapp-button{min-height:53px;position:relative;border:0;border-radius:12px;background:#25d366;color:#fff;font-size:12px;font-weight:750;letter-spacing:.01em;box-shadow:0 8px 20px #128c4b32;transition:background-color .18s ease,box-shadow .18s ease,transform .18s ease}

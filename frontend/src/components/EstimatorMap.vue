@@ -25,9 +25,15 @@ const container = ref<HTMLDivElement>();
 const notice = ref('');
 const locationPending = ref(false);
 const centerPoint = ref<LocationPoint | null>(null);
+const userLocationPoint = ref<LocationPoint | null>(null);
 const mapMoving = ref(false);
 const pinSettling = ref(false);
 const centerPicking = computed(() => !!props.selection && !props.busy);
+const centerAtUserLocation = computed(() => {
+  if (!centerPicking.value || !centerPoint.value || !userLocationPoint.value) return false;
+  return L.latLng(centerPoint.value.lat, centerPoint.value.lng)
+    .distanceTo(L.latLng(userLocationPoint.value.lat, userLocationPoint.value.lng)) < 25;
+});
 let map: L.Map;
 let pickupMarker: L.Marker | null = null;
 let destinationMarker: L.Marker | null = null;
@@ -329,9 +335,10 @@ function syncReferenceVisuals() {
 
   const userPoint = userLocationMarker?.getLatLng();
   const pickupPoint = props.pickup ? L.latLng(props.pickup.lat, props.pickup.lng) : null;
-  const overlapsPickup = !!(centerPicking.value && userPoint && pickupPoint && map.distance(userPoint, pickupPoint) < 25);
-  userLocationMarker?.setOpacity(overlapsPickup ? 0 : 1);
-  accuracyCircle?.setStyle({ opacity: overlapsPickup ? 0 : 0.45, fillOpacity: overlapsPickup ? 0 : 0.12 });
+  const overlapsPickup = !!(userPoint && pickupPoint && map.distance(userPoint, pickupPoint) < 25);
+  pickupMarker?.getElement()?.classList.toggle('at-user-location', overlapsPickup);
+  userLocationMarker?.setOpacity(1);
+  accuracyCircle?.setStyle({ opacity: 0.45, fillOpacity: 0.12 });
 }
 
 function syncCenterPoint() {
@@ -386,6 +393,7 @@ function fitMap() {
 
 function showUserLocation(point: LocationPoint, accuracy: number) {
   const latLng = L.latLng(point.lat, point.lng);
+  userLocationPoint.value = { ...point };
   if (!userLocationMarker) {
     const userIcon = L.divIcon({ className: 'user-location-marker', html: '<span class="user-location-dot"><i></i></span>', iconSize: [24, 24], iconAnchor: [12, 12] });
     userLocationMarker = L.marker(latLng, { icon: userIcon, interactive: false, keyboard: false, zIndexOffset: -100 }).addTo(map);
@@ -552,7 +560,7 @@ onBeforeUnmount(() => {
     <div ref="container" class="leaflet-map" :class="{ 'map-selecting': selection && !busy }" />
     <div class="map-actions"><button type="button" :disabled="locationPending" aria-label="Tampilkan lokasi saya" title="Lokasi saya" @click="locate()"><LoaderCircle v-if="locationPending" :size="19" class="spinner" /><LocateFixed v-else :size="19" /></button><button type="button" aria-label="Lihat seluruh rute" title="Lihat seluruh rute" @click="fitMap"><Maximize2 :size="18" /></button></div>
     <div v-if="notice" class="map-notice" role="status">{{ notice }} <button aria-label="Tutup pemberitahuan peta" @click="notice = ''">×</button></div>
-    <div v-if="centerPicking" class="center-picker-target" :class="[selection === 'pickup' ? 'pickup' : 'destination', { moving: mapMoving, settling: pinSettling }]" aria-hidden="true">
+    <div v-if="centerPicking" class="center-picker-target" :class="[selection === 'pickup' ? 'pickup' : 'destination', { moving: mapMoving, settling: pinSettling, 'at-user-location': centerAtUserLocation }]" aria-hidden="true">
       <svg class="center-picker-icon" viewBox="0 0 56 74">
         <defs>
           <linearGradient id="center-picker-gradient" x1="10" y1="5" x2="46" y2="49" gradientUnits="userSpaceOnUse">
@@ -577,6 +585,7 @@ onBeforeUnmount(() => {
         </g>
         <circle class="center-picker-dot" cx="28" cy="70" r="3.5" vector-effect="non-scaling-stroke" />
       </svg>
+      <span v-if="centerAtUserLocation" class="center-picker-location-label">Lokasi Anda</span>
     </div>
     <div v-else-if="busy || estimate || (!pickup && !destination)" class="map-hint" aria-live="polite">
       <span>{{ busy ? 'Menghitung rute perjalanan…' : estimate ? 'Rute ditemukan. Marker dapat digeser.' : 'Pilih titik untuk mulai' }}</span>
